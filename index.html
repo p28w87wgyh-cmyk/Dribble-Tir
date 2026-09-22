@@ -2,27 +2,51 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Dribble &amp; Tir</title>
 <style>
   :root{--accent:#ffb703;--accent2:#2ec4b6;}
   html,body{margin:0;padding:0;background:#0e1a12;color:#eaf5ea;
-    font-family:"Segoe UI",Arial,sans-serif;min-height:100vh;
-    display:flex;align-items:center;justify-content:center;overflow-y:auto;}
+    font-family:"Segoe UI",Arial,sans-serif;width:100%;height:100%;overflow:hidden;}
+  #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    overflow:auto;-webkit-overflow-scrolling:touch;}
   #app{position:relative;width:480px;height:760px;
     box-shadow:0 0 50px rgba(0,0,0,.6);border-radius:14px;overflow:hidden;
-    flex-shrink:0;margin:20px 0;}
+    flex-shrink:0;margin:20px 0;transform-origin:center center;}
   canvas{display:block;background:#1c5c2e;}
-  #hud{position:absolute;top:0;left:0;width:100%;padding:10px 14px;
+  #hud{position:absolute;top:0;left:0;width:100%;padding:10px 14px;z-index:3;
     display:flex;justify-content:space-between;align-items:center;
     box-sizing:border-box;font-weight:700;font-size:15px;
     text-shadow:0 1px 4px rgba(0,0,0,.7);pointer-events:none;}
   .lives{display:flex;gap:3px;}
   .life{color:#ff5d73;font-size:18px;}
   .life.lost{color:#3a3a3a;}
-  .overlay{position:absolute;inset:0;background:rgba(6,14,9,.94);
+  .overlay{position:absolute;inset:0;background:rgba(6,14,9,.94);z-index:10;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     gap:14px;text-align:center;padding:24px;box-sizing:border-box;overflow:auto;}
   .hidden{display:none!important;}
+  /* ---- Controles tactiles (mobile) ---- */
+  #touch-controls{position:absolute;left:0;right:0;bottom:16px;z-index:5;
+    display:none;justify-content:space-between;align-items:flex-end;
+    padding:0 18px;box-sizing:border-box;}
+  #joystick-zone{width:104px;height:104px;border-radius:50%;
+    background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.35);
+    position:relative;touch-action:none;}
+  #joystick-thumb{width:46px;height:46px;border-radius:50%;
+    background:rgba(255,183,3,.85);position:absolute;left:50%;top:50%;
+    margin:-23px 0 0 -23px;transition:transform .04s linear;}
+  .shoot-buttons{display:flex;gap:10px;}
+  .shoot-btn{width:58px;height:58px;border-radius:50%;font-size:20px;
+    padding:0;line-height:58px;text-align:center;
+    background:rgba(255,183,3,.5);color:#1a1a1a;font-weight:800;border:none;
+    transition:background .15s,box-shadow .15s;}
+  .shoot-btn.ready{background:#ffb703;box-shadow:0 0 14px rgba(255,183,3,.85);}
+  .mobile-only{display:none;}
+  @media (hover:none) and (pointer:coarse), (max-width:820px){
+    #touch-controls{display:flex;}
+    .desktop-only{display:none;}
+    .mobile-only{display:block;}
+  }
   h1{margin:0;font-size:26px;}
   h2{margin:0;font-size:20px;}
   p{margin:0;font-size:13px;opacity:.85;max-width:340px;}
@@ -48,6 +72,7 @@
 </style>
 </head>
 <body>
+<div id="stage">
 <div id="app">
   <canvas id="game" width="480" height="760"></canvas>
 
@@ -66,7 +91,8 @@
     <p>Dribble les d&eacute;fenseurs, cadre ton tir, d&eacute;joue le gardien. Gagne des pi&egrave;ces et personnalise ton ballon, le but et les d&eacute;fenseurs.</p>
     <button id="btn-play">Jouer</button>
     <button class="secondary" id="btn-shop">Boutique</button>
-    <p>D&eacute;placement : <b>Z Q S D</b> (diagonales possibles) &mdash; Tir : <b>Z</b>+Espace (milieu), <b>Q</b>+Espace (gauche), <b>D</b>+Espace (droite)</p>
+    <p class="desktop-only">D&eacute;placement : <b>Z Q S D</b> (diagonales possibles) &mdash; Tir : <b>Z</b>+Espace (milieu), <b>Q</b>+Espace (gauche), <b>D</b>+Espace (droite)</p>
+    <p class="mobile-only">D&eacute;place-toi avec le joystick en bas &agrave; gauche. Tire avec les boutons en bas &agrave; droite (gauche / milieu / droite).</p>
   </div>
 
   <div id="shop-overlay" class="overlay hidden">
@@ -81,7 +107,17 @@
     <button class="secondary" id="btn-shop-back">Retour</button>
   </div>
 
-  <div class="controls-hint hidden" id="hint-play">Echap = pause / boutique</div>
+  <div class="controls-hint hidden desktop-only" id="hint-play">Echap = pause / boutique</div>
+
+  <div id="touch-controls">
+    <div id="joystick-zone"><div id="joystick-thumb"></div></div>
+    <div class="shoot-buttons">
+      <button type="button" class="shoot-btn" id="shoot-left">&#9664;</button>
+      <button type="button" class="shoot-btn" id="shoot-mid">&#9679;</button>
+      <button type="button" class="shoot-btn" id="shoot-right">&#9654;</button>
+    </div>
+  </div>
+</div>
 </div>
 
 <script>
@@ -174,6 +210,7 @@
     shotStart: null,
     shotEnd: null,
     shotBall: null,
+    touch: { active:false, dx:0, dy:0 },
     lastTime: 0
   };
 
@@ -189,6 +226,9 @@
   function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
   function normalize(x,y){ var l = Math.hypot(x,y) || 1; return { x:x/l, y:y/l }; }
   function easeOut(t){ return 1 - Math.pow(1-t,3); }
+  var touchLayoutMQ = window.matchMedia('(hover: none) and (pointer: coarse)');
+  var narrowLayoutMQ = window.matchMedia('(max-width: 820px)');
+  function isTouchLayout(){ return touchLayoutMQ.matches || narrowLayoutMQ.matches; }
   function zoneCenterX(zone){
     var w = CW - 2*FIELD_MARGIN;
     return FIELD_MARGIN + w*(zone+0.5)/3;
@@ -228,7 +268,23 @@
     app.style.width = CW + 'px';
     app.style.height = CH + 'px';
     START_Y = CH - 80;
+    fitToViewport();
   }
+
+  // ---- Mise a l'echelle responsive : le jeu garde sa resolution interne fixe (CW x CH)
+  // mais on redimensionne visuellement #app pour qu'il tienne dans n'importe quel ecran ----
+  var MIN_SCALE = 0.32;
+  function fitToViewport(){
+    var app = document.getElementById('app');
+    var pad = 16;
+    var availW = window.innerWidth - pad*2;
+    var availH = window.innerHeight - pad*2;
+    var scale = Math.min(availW/CW, availH/CH, 1);
+    scale = Math.max(scale, MIN_SCALE);
+    app.style.transform = 'scale(' + scale + ')';
+  }
+  window.addEventListener('resize', fitToViewport);
+  window.addEventListener('orientationchange', fitToViewport);
 
   // ---- Audio (synthetise, aucun fichier externe) ----
   var audioCtx = null;
@@ -393,8 +449,12 @@
     if(S.keys['s']) dy += 1;
     if(S.keys['q']) dx -= 1;
     if(S.keys['d']) dx += 1;
-    if(dx!==0 || dy!==0){
-      var len = Math.hypot(dx,dy); dx/=len; dy/=len;
+    if(S.touch.active && (Math.abs(S.touch.dx) > 0.06 || Math.abs(S.touch.dy) > 0.06)){
+      dx = S.touch.dx; dy = S.touch.dy;
+    }
+    var len = Math.hypot(dx,dy);
+    if(len > 1){ dx/=len; dy/=len; len=1; }
+    if(len > 0.001){
       var speed = 210;
       var nx = S.player.x + dx*speed*dt;
       var ny = S.player.y + dy*speed*dt;
@@ -780,7 +840,8 @@
     if(S.screen==='playing' && S.shootReady){
       ctx.fillStyle = 'rgba(255,255,255,.9)';
       ctx.font = '13px Segoe UI'; ctx.textAlign = 'center';
-      ctx.fillText('Tire : Z / Q / D + Espace', CW/2, S.player.y-30);
+      var hintTxt = isTouchLayout() ? 'Appuie sur un bouton de tir' : 'Tire : Z / Q / D + Espace';
+      ctx.fillText(hintTxt, CW/2, S.player.y-30);
     }
   }
 
@@ -802,6 +863,17 @@
       msgText.textContent = S.message;
     } else {
       msgOverlay.classList.add('hidden');
+    }
+    updateTouchButtons();
+  }
+
+  function updateTouchButtons(){
+    var ready = S.screen==='playing' && S.shootReady;
+    var ids = ['shoot-left','shoot-mid','shoot-right'];
+    for(var i=0;i<ids.length;i++){
+      var el = document.getElementById(ids[i]);
+      el.classList.toggle('ready', ready);
+      el.disabled = !ready;
     }
   }
 
@@ -895,6 +967,62 @@
     });
   }
 
+  // ---- Controles tactiles : joystick virtuel + boutons de tir ----
+  var joyZone = document.getElementById('joystick-zone');
+  var joyThumb = document.getElementById('joystick-thumb');
+
+  function joyPointFromEvent(e){
+    if(e.touches && e.touches.length){ return { x:e.touches[0].clientX, y:e.touches[0].clientY }; }
+    return { x:e.clientX, y:e.clientY };
+  }
+  function joyMove(e){
+    if(!S.touch.active) return;
+    e.preventDefault();
+    var p = joyPointFromEvent(e);
+    var rect = joyZone.getBoundingClientRect();
+    var cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
+    var dx = p.x - cx, dy = p.y - cy;
+    var maxR = rect.width/2 - 12;
+    var dist = Math.min(Math.hypot(dx,dy), maxR);
+    var ang = Math.atan2(dy,dx);
+    var tx = Math.cos(ang)*dist, ty = Math.sin(ang)*dist;
+    S.touch.dx = maxR>0 ? tx/maxR : 0;
+    S.touch.dy = maxR>0 ? ty/maxR : 0;
+    joyThumb.style.transform = 'translate(' + tx + 'px,' + ty + 'px)';
+  }
+  function joyStart(e){
+    ensureAudio();
+    S.touch.active = true;
+    joyMove(e);
+  }
+  function joyEnd(){
+    S.touch.active = false;
+    S.touch.dx = 0; S.touch.dy = 0;
+    joyThumb.style.transform = 'translate(0,0)';
+  }
+  joyZone.addEventListener('touchstart', joyStart, { passive:false });
+  joyZone.addEventListener('touchmove', joyMove, { passive:false });
+  joyZone.addEventListener('touchend', joyEnd);
+  joyZone.addEventListener('touchcancel', joyEnd);
+  joyZone.addEventListener('mousedown', function(e){ joyStart(e); });
+  window.addEventListener('mousemove', function(e){ if(S.touch.active) joyMove(e); });
+  window.addEventListener('mouseup', function(){ if(S.touch.active) joyEnd(); });
+
+  function bindShootButton(id, zone){
+    var el = document.getElementById(id);
+    var trigger = function(e){
+      e.preventDefault();
+      ensureAudio();
+      if(S.screen==='playing' && S.shootReady){ resolveShot(zone); }
+    };
+    el.addEventListener('touchstart', trigger, { passive:false });
+    el.addEventListener('click', trigger);
+  }
+  bindShootButton('shoot-left', 0);
+  bindShootButton('shoot-mid', 1);
+  bindShootButton('shoot-right', 2);
+
+  fitToViewport();
   requestAnimationFrame(loop);
 })();
 </script>
