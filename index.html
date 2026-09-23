@@ -5,81 +5,145 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Dribble &amp; Tir</title>
 <style>
-  :root{--accent:#ffb703;--accent2:#2ec4b6;}
-  html,body{margin:0;padding:0;background:#0e1a12;color:#eaf5ea;
-    font-family:"Segoe UI",Arial,sans-serif;width:100%;height:100%;overflow:hidden;}
+  :root{
+    --cream:#f4ead0; --cream2:#eadfb9; --ink:#1a1a1a;
+    --orange:#ff9500; --orange-dark:#e07d00; --red:#e6394a; --teal:#2ec4b6;
+  }
+  html,body{margin:0;padding:0;background:#0e1a12;color:var(--ink);
+    font-family:"Arial Black","Segoe UI",Arial,sans-serif;width:100%;height:100%;overflow:hidden;}
   #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
     overflow:auto;-webkit-overflow-scrolling:touch;}
-  #app{position:relative;width:480px;height:760px;
+  #app{position:relative;width:480px;height:852px;display:flex;flex-direction:column;
     box-shadow:0 0 50px rgba(0,0,0,.6);border-radius:14px;overflow:hidden;
     flex-shrink:0;margin:20px 0;transform-origin:center center;}
   canvas{display:block;background:#1c5c2e;}
-  #hud{position:absolute;top:0;left:0;width:100%;padding:10px 14px;z-index:3;
-    display:flex;justify-content:space-between;align-items:center;
-    box-sizing:border-box;font-weight:700;font-size:15px;
-    text-shadow:0 1px 4px rgba(0,0,0,.7);pointer-events:none;}
+  #hud-bar{flex:0 0 92px;background:var(--cream);border-bottom:3px solid var(--ink);
+    box-sizing:border-box;padding:8px 14px;display:flex;flex-direction:column;
+    justify-content:center;gap:5px;color:var(--ink);}
+  .hud-row{display:flex;justify-content:space-between;align-items:flex-end;}
+  .hud-label{font-size:10px;font-weight:900;letter-spacing:1px;opacity:.6;text-transform:uppercase;}
+  .hud-big{font-size:26px;font-weight:900;line-height:1;}
+  .hud-coin{display:flex;align-items:center;gap:5px;justify-content:flex-end;}
+  #field-wrap{position:relative;flex:1 1 auto;width:100%;overflow:hidden;}
+  #field-controls{position:absolute;top:8px;right:8px;z-index:6;display:flex;gap:8px;}
+  .icon-btn{width:38px;height:38px;padding:0;border-radius:9px;font-size:16px;
+    background:var(--cream);box-shadow:2px 2px 0 var(--ink);}
   .lives{display:flex;gap:3px;}
-  .life{color:#ff5d73;font-size:18px;}
-  .life.lost{color:#3a3a3a;}
-  .overlay{position:absolute;inset:0;background:rgba(6,14,9,.94);z-index:10;
+  .life{color:var(--red);font-size:19px;
+    text-shadow:-1px -1px 0 var(--ink),1px -1px 0 var(--ink),-1px 1px 0 var(--ink),1px 1px 0 var(--ink);}
+  .life.lost{color:#c9bd9a;text-shadow:none;}
+  .overlay{position:absolute;inset:0;background:var(--cream);z-index:10;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
-    gap:14px;text-align:center;padding:24px;box-sizing:border-box;overflow:auto;}
+    gap:14px;text-align:center;padding:24px;box-sizing:border-box;overflow:auto;color:var(--ink);}
   .hidden{display:none!important;}
-  /* ---- Controles tactiles (mobile) ---- */
+  h1{margin:0;font-size:28px;letter-spacing:.5px;}
+  h2{margin:0;font-size:21px;letter-spacing:.5px;}
+  p{margin:0;font-size:13px;opacity:.8;max-width:340px;font-family:"Segoe UI",Arial,sans-serif;font-weight:400;}
+  .best-line{font-size:13px;font-weight:900;background:var(--cream2);padding:7px 16px;
+    border-radius:20px;border:2px solid var(--ink);}
+  button{background:var(--orange);border:3px solid var(--ink);color:var(--ink);font-weight:900;
+    padding:11px 24px;border-radius:10px;cursor:pointer;font-size:15px;
+    text-transform:uppercase;letter-spacing:.5px;box-shadow:3px 3px 0 var(--ink);}
+  button:active{box-shadow:1px 1px 0 var(--ink);transform:translate(2px,2px);}
+  button.secondary{background:var(--cream);}
+  button:disabled{opacity:.4;cursor:default;box-shadow:2px 2px 0 var(--ink);}
+  .shop-tabs{display:flex;gap:8px;}
+  .shop-tabs button{padding:8px 14px;font-size:12px;opacity:.55;background:var(--cream2);
+    box-shadow:2px 2px 0 var(--ink);}
+  .shop-tabs button.active{opacity:1;background:var(--orange);}
+  .shop-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:8px 0;
+    max-height:380px;overflow:auto;padding:4px;width:100%;box-sizing:border-box;}
+  .skin-card{background:var(--cream2);border:2px solid var(--ink);border-radius:10px;
+    padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:6px;
+    font-size:10px;font-family:"Segoe UI",Arial,sans-serif;font-weight:700;}
+  .skin-card.equipped{border-color:var(--orange);border-width:3px;}
+  .skin-ball{width:34px;height:34px;border-radius:50%;border:2px solid var(--ink);
+    box-shadow:inset 0 -4px 6px rgba(0,0,0,.3);position:relative;}
+  .lock-badge{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:15px;}
+  .skin-card button{padding:6px 10px;font-size:10px;letter-spacing:0;}
+  .result-card{background:var(--cream2);border:3px solid var(--ink);border-radius:14px;
+    box-shadow:5px 5px 0 var(--ink);padding:22px 20px;display:flex;flex-direction:column;
+    align-items:center;gap:10px;max-width:330px;width:100%;}
+  .result-emoji{font-size:40px;line-height:1;}
+  .result-line{font-size:13px;font-weight:900;background:var(--cream);border:2px solid var(--ink);
+    border-radius:18px;padding:6px 14px;font-family:"Segoe UI",Arial,sans-serif;}
+  .result-card button{width:100%;}
+  .levels-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;max-height:400px;
+    overflow:auto;padding:4px;width:100%;box-sizing:border-box;}
+  .level-cell{padding:8px 0;font-size:16px;border-radius:10px;background:var(--cream2);
+    box-shadow:2px 2px 0 var(--ink);display:flex;flex-direction:column;align-items:center;
+    gap:2px;line-height:1.2;}
+  .level-cell .lc-badge{font-size:10px;}
+  .level-cell.done{background:var(--orange);}
+  .level-cell.current{border-color:var(--orange);border-width:3px;}
+  .level-cell.locked{opacity:.45;box-shadow:none;cursor:default;}
+  .level-cell.locked:active{transform:none;box-shadow:none;}
+  #msg-overlay{background:transparent;pointer-events:none;}
+  #msg-text{font-size:36px;font-weight:900;letter-spacing:.5px;color:#fff;
+    text-shadow:-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000,2px 2px 0 #000;}
+  .controls-hint{position:absolute;bottom:8px;left:0;width:100%;text-align:center;
+    font-size:11px;opacity:.6;pointer-events:none;color:#fff;
+    text-shadow:0 1px 3px rgba(0,0,0,.7);}
   #touch-controls{position:absolute;left:0;right:0;bottom:16px;z-index:5;
     display:none;justify-content:space-between;align-items:flex-end;
     padding:0 18px;box-sizing:border-box;}
   #joystick-zone{width:104px;height:104px;border-radius:50%;
-    background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.35);
+    background:rgba(255,255,255,.15);border:3px solid rgba(0,0,0,.5);
     position:relative;touch-action:none;}
   #joystick-thumb{width:46px;height:46px;border-radius:50%;
-    background:rgba(255,183,3,.85);position:absolute;left:50%;top:50%;
+    background:var(--orange);border:2px solid var(--ink);position:absolute;left:50%;top:50%;
     margin:-23px 0 0 -23px;transition:transform .04s linear;}
   .shoot-buttons{display:flex;gap:10px;}
   .shoot-btn{width:58px;height:58px;border-radius:50%;font-size:20px;
-    padding:0;line-height:58px;text-align:center;
-    background:rgba(255,183,3,.5);color:#1a1a1a;font-weight:800;border:none;
-    transition:background .15s,box-shadow .15s;}
-  .shoot-btn.ready{background:#ffb703;box-shadow:0 0 14px rgba(255,183,3,.85);}
+    padding:0;line-height:52px;text-align:center;
+    background:rgba(255,149,0,.55);color:var(--ink);font-weight:900;border:3px solid rgba(0,0,0,.4);
+    transition:background .15s,box-shadow .15s;box-shadow:none;}
+  .shoot-btn.ready{background:var(--orange);border-color:var(--ink);box-shadow:2px 2px 0 var(--ink);}
   .mobile-only{display:none;}
   @media (hover:none) and (pointer:coarse), (max-width:820px){
     #touch-controls{display:flex;}
     .desktop-only{display:none;}
     .mobile-only{display:block;}
   }
-  h1{margin:0;font-size:26px;}
-  h2{margin:0;font-size:20px;}
-  p{margin:0;font-size:13px;opacity:.85;max-width:340px;}
-  button{background:var(--accent);border:none;color:#1a1a1a;font-weight:800;
-    padding:11px 24px;border-radius:9px;cursor:pointer;font-size:15px;}
-  button.secondary{background:var(--accent2);}
-  button:disabled{opacity:.4;cursor:default;}
-  .shop-tabs{display:flex;gap:8px;}
-  .shop-tabs button{padding:8px 14px;font-size:13px;opacity:.55;background:#274b34;color:#eaf5ea;}
-  .shop-tabs button.active{opacity:1;background:var(--accent);color:#1a1a1a;}
-  .shop-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:8px 0;
-    max-height:400px;overflow:auto;padding:4px;width:100%;box-sizing:border-box;}
-  .skin-card{background:#123321;border:2px solid transparent;border-radius:10px;
-    padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:6px;
-    font-size:11px;}
-  .skin-card.equipped{border-color:var(--accent);}
-  .skin-ball{width:34px;height:34px;border-radius:50%;box-shadow:inset 0 -4px 6px rgba(0,0,0,.3);}
-  .skin-card button{padding:6px 10px;font-size:11px;}
-  #msg-overlay{background:transparent;pointer-events:none;}
-  #msg-text{font-size:38px;font-weight:900;text-shadow:0 3px 12px rgba(0,0,0,.8);}
-  .controls-hint{position:absolute;bottom:8px;left:0;width:100%;text-align:center;
-    font-size:11px;opacity:.6;pointer-events:none;}
 </style>
 </head>
 <body>
 <div id="stage">
 <div id="app">
-  <canvas id="game" width="480" height="760"></canvas>
+  <div id="hud-bar">
+    <div class="hud-row">
+      <div>
+        <div class="hud-label">Niveau</div>
+        <div class="hud-big" id="hud-level">1</div>
+      </div>
+      <div>
+        <div class="hud-label" style="text-align:right;">Pi&egrave;ces</div>
+        <div class="hud-big hud-coin">&#127849; <span id="hud-coins">0</span></div>
+      </div>
+    </div>
+    <div class="hud-row">
+      <div class="hud-label">Vies</div>
+      <div class="lives" id="hud-lives"></div>
+    </div>
+  </div>
 
-  <div id="hud">
-    <div>Niveau <span id="hud-level">1</span></div>
-    <div class="lives" id="hud-lives"></div>
-    <div>&#127849; <span id="hud-coins">0</span></div>
+  <div id="field-wrap">
+    <canvas id="game" width="480" height="760"></canvas>
+
+    <div id="field-controls">
+      <button type="button" class="icon-btn" id="btn-pause" title="Pause">&#10074;&#10074;</button>
+      <button type="button" class="icon-btn" id="btn-shop-ingame" title="Boutique">&#128722;</button>
+    </div>
+
+    <div id="touch-controls">
+      <div id="joystick-zone"><div id="joystick-thumb"></div></div>
+      <div class="shoot-buttons">
+        <button type="button" class="shoot-btn" id="shoot-left">&#9664;</button>
+        <button type="button" class="shoot-btn" id="shoot-mid">&#9679;</button>
+        <button type="button" class="shoot-btn" id="shoot-right">&#9654;</button>
+      </div>
+    </div>
   </div>
 
   <div id="msg-overlay" class="overlay hidden">
@@ -89,10 +153,43 @@
   <div id="menu-overlay" class="overlay">
     <h1>Dribble &amp; Tir</h1>
     <p>Dribble les d&eacute;fenseurs, cadre ton tir, d&eacute;joue le gardien. Gagne des pi&egrave;ces et personnalise ton ballon, le but et les d&eacute;fenseurs.</p>
+    <div class="best-line">Meilleur niveau atteint : <b id="menu-best">1</b></div>
     <button id="btn-play">Jouer</button>
+    <button class="secondary" id="btn-levels">Niveaux</button>
     <button class="secondary" id="btn-shop">Boutique</button>
     <p class="desktop-only">D&eacute;placement : <b>Z Q S D</b> (diagonales possibles) &mdash; Tir : <b>Z</b>+Espace (milieu), <b>Q</b>+Espace (gauche), <b>D</b>+Espace (droite)</p>
     <p class="mobile-only">D&eacute;place-toi avec le joystick en bas &agrave; gauche. Tire avec les boutons en bas &agrave; droite (gauche / milieu / droite).</p>
+  </div>
+
+  <div id="levels-overlay" class="overlay hidden">
+    <h2>Niveaux</h2>
+    <p>Termine un niveau pour d&eacute;bloquer le suivant.</p>
+    <div class="best-line">D&eacute;bloqu&eacute; jusqu'au niveau <b id="levels-best">1</b></div>
+    <div class="levels-grid" id="levels-grid"></div>
+    <button class="secondary" id="btn-levels-back">Retour</button>
+  </div>
+
+  <div id="complete-overlay" class="overlay hidden">
+    <div class="result-card">
+      <div class="result-emoji">&#9917;</div>
+      <h2>Niveau <span id="complete-num">1</span> termin&eacute; !</h2>
+      <div class="result-line" id="complete-unlocked"></div>
+      <div class="result-line" id="complete-coins"></div>
+      <div class="result-line" id="complete-streak" style="display:none;"></div>
+      <button id="btn-next-level">Niveau suivant</button>
+      <button class="secondary" id="btn-complete-menu">Menu</button>
+    </div>
+  </div>
+
+  <div id="gameover-overlay" class="overlay hidden">
+    <div class="result-card">
+      <div class="result-emoji">&#129316;</div>
+      <h2>Partie termin&eacute;e</h2>
+      <p id="gameover-info"></p>
+      <div class="result-line" id="gameover-penalty"></div>
+      <button id="btn-retry">R&eacute;essayer</button>
+      <button class="secondary" id="btn-gameover-menu">Menu</button>
+    </div>
   </div>
 
   <div id="shop-overlay" class="overlay hidden">
@@ -108,15 +205,6 @@
   </div>
 
   <div class="controls-hint hidden desktop-only" id="hint-play">Echap = pause / boutique</div>
-
-  <div id="touch-controls">
-    <div id="joystick-zone"><div id="joystick-thumb"></div></div>
-    <div class="shoot-buttons">
-      <button type="button" class="shoot-btn" id="shoot-left">&#9664;</button>
-      <button type="button" class="shoot-btn" id="shoot-mid">&#9679;</button>
-      <button type="button" class="shoot-btn" id="shoot-right">&#9654;</button>
-    </div>
-  </div>
 </div>
 </div>
 
@@ -124,49 +212,60 @@
 (function(){
   "use strict";
 
-  var CW = 480, CH = 760;
+  var CW = 480, CH = 760; // taille d'ecran FIXE, ne change plus jamais
   var canvas = document.getElementById('game');
   var ctx = canvas.getContext('2d');
 
   var GOAL_H = 90;
-  var SHOOT_Y = 320;
-  var START_Y = 680;
+  var SHOOT_Y = 450;
   var FIELD_MARGIN = 30;
+  var BOTTOM_MARGIN = 80;
   var BALL_R = 14, DEF_R = 17, GK_R = 19, OBS_R = 20;
+  var MAX_DEFENDERS = 20;
+  var ACTIVATION_RANGE = 260;
+  var LINE_ATTACK_LEVEL = 10;
+  var LINE_ATTACK_LEVEL_3 = 16;
+  var LINE_ATTACK_LEVEL_4 = 22;
+  var LINE_ATTACK_LEVEL_5 = 28;
 
-  var SAVE_KEY = 'dribbleEtTir_save_v2';
+  var SAVE_KEY = 'dribbleEtTir_save_v3';
   var LIFE_LOST_PENALTY = 150;
+  var START_Y = 680; // recalcule a chaque niveau (bas du monde, point de depart)
 
   var skins = [
     { id:'classic',    name:'Classique',   price:0,    color:'#ffffff', pattern:'solid'   },
     { id:'noir',       name:'Nuit',        price:20,   color:'#3a3a3a', pattern:'solid'   },
     { id:'or',         name:'Or',          price:60,   color:'#e8b923', pattern:'solid'   },
     { id:'feu',        name:'Flamme',      price:100,  color:'#e63946', pattern:'stripes' },
-    { id:'ocean',      name:'Oc\u00e9an',      price:140,  color:'#2ec4b6', pattern:'dots'    },
+    { id:'ocean',      name:'Oc\u00e9an',  price:140,  color:'#2ec4b6', pattern:'dots'    },
     { id:'galaxy',     name:'Galaxie',     price:220,  color:'#6a4c93', pattern:'stars'   },
     { id:'damier',     name:'Damier',      price:600,  color:'#ffffff', pattern:'checker' },
     { id:'arcenciel',  name:'Arc-en-ciel', price:900,  color:'#ffffff', pattern:'rainbow' },
-    { id:'neon',       name:'N\u00e9on',       price:1300, color:'#39ff14', pattern:'glow'    },
+    { id:'neon',       name:'N\u00e9on',   price:1300, color:'#39ff14', pattern:'glow'    },
     { id:'diamant',    name:'Diamant',     price:1800, color:'#b9f2ff', pattern:'diamond' },
-    { id:'metal',      name:'M\u00e9tal',      price:2200, color:'#b0b0b0', pattern:'metal'   },
+    { id:'metal',      name:'M\u00e9tal',  price:2200, color:'#b0b0b0', pattern:'metal'   },
     { id:'tricolore',  name:'Tricolore',   price:2600, color:'#ffffff', pattern:'flag'    }
   ];
 
   var goalColors = [
     { id:'blanc', name:'Blanc (d\u00e9faut)', price:0,    color:'#e9e9e9' },
-    { id:'jaune', name:'Jaune',         price:900,  color:'#ffd60a' },
-    { id:'rouge', name:'Rouge vif',     price:1500, color:'#e63946' },
-    { id:'noir',  name:'Noir',          price:2200, color:'#1a1a1a' },
-    { id:'or',    name:'Dor\u00e9',         price:3000, color:'#d4af37' }
+    { id:'jaune', name:'Jaune',               price:900,  color:'#ffd60a' },
+    { id:'rouge', name:'Rouge vif',           price:1500, color:'#e63946' },
+    { id:'noir',  name:'Noir',                price:2200, color:'#1a1a1a' },
+    { id:'or',    name:'Dor\u00e9',           price:3000, color:'#d4af37' }
   ];
 
   var defenderColors = [
     { id:'rouge',  name:'Rouge (d\u00e9faut)', price:0,    color:'#d1495b' },
-    { id:'bleu',   name:'Bleu',          price:1000, color:'#3a86ff' },
-    { id:'violet', name:'Violet',        price:1700, color:'#8338ec' },
-    { id:'noir',   name:'Noir',          price:2400, color:'#2b2d42' },
-    { id:'or',     name:'Dor\u00e9',         price:3200, color:'#d4af37' }
+    { id:'bleu',   name:'Bleu',                price:1000, color:'#3a86ff' },
+    { id:'violet', name:'Violet',              price:1700, color:'#8338ec' },
+    { id:'noir',   name:'Noir',                price:2400, color:'#2b2d42' },
+    { id:'or',     name:'Dor\u00e9',           price:3200, color:'#d4af37' }
   ];
+
+  function worldLengthForLevel(level){
+    return Math.min(760 + (level-1)*150, 4500);
+  }
 
   function loadSave(){
     try{
@@ -174,7 +273,7 @@
       if(raw) return JSON.parse(raw);
     }catch(e){}
     return {
-      coins:0, level:1,
+      coins:0, level:1, bestLevel:1,
       unlocked:['classic'], equipped:'classic',
       unlockedGoal:['blanc'], equippedGoal:'blanc',
       unlockedDef:['rouge'], equippedDef:'rouge'
@@ -186,8 +285,10 @@
     screen:'menu',
     started:false,
     level: persisted.level || 1,
+    bestLevel: persisted.bestLevel || 1,
     lives: 3,
     coins: persisted.coins || 0,
+    levelStartCoins: 0,
     unlocked: persisted.unlocked || ['classic'],
     equipped: persisted.equipped || 'classic',
     unlockedGoal: persisted.unlockedGoal || ['blanc'],
@@ -195,11 +296,16 @@
     unlockedDef: persisted.unlockedDef || ['rouge'],
     equippedDef: persisted.equippedDef || 'rouge',
     shopTab: 'ball',
+    worldLength: 760,
+    camera: { y: 0 },
+    streak: 0,
+    levelMissed: false,
     player: { x: CW/2, y: START_Y, r: BALL_R },
     defenders: [],
     obstacles: [],
     floatingTexts: [],
-    gk: { x: CW/2, y: GOAL_H/2, startX: CW/2, targetZone:1, diving:false, tilt:0, trail:[] },
+    particles: [],
+    gk: { x: CW/2, y: GOAL_H/2, startX: CW/2, targetZone:1, diving:false, tilt:0, trail:[], confident:false },
     shootReady: false,
     keys: {},
     message: '',
@@ -216,7 +322,7 @@
 
   function persist(){
     localStorage.setItem(SAVE_KEY, JSON.stringify({
-      coins: S.coins, level: S.level,
+      coins: S.coins, level: S.level, bestLevel: S.bestLevel,
       unlocked: S.unlocked, equipped: S.equipped,
       unlockedGoal: S.unlockedGoal, equippedGoal: S.equippedGoal,
       unlockedDef: S.unlockedDef, equippedDef: S.equippedDef
@@ -249,42 +355,9 @@
     for(var i=0;i<defenderColors.length;i++){ if(defenderColors[i].id===S.equippedDef) return defenderColors[i].color; }
     return '#d1495b';
   }
-
-  // ---- Terrain qui grandit avec le niveau (bien plus loin, pour rester toujours jouable) ----
-  var MAX_DEFENDERS = 12;
-  function defenderCountForLevel(level){
-    return Math.min(level, MAX_DEFENDERS);
+  function vibrate(pattern){
+    if(navigator.vibrate){ try{ navigator.vibrate(pattern); }catch(e){} }
   }
-  function fieldSizeForLevel(level){
-    var w = Math.min(480 + (level-1)*22, 760);
-    var h = Math.min(760 + (level-1)*85, 1900);
-    return { w: Math.round(w), h: Math.round(h) };
-  }
-  function applyFieldSize(level){
-    var sz = fieldSizeForLevel(level);
-    CW = sz.w; CH = sz.h;
-    canvas.width = CW; canvas.height = CH;
-    var app = document.getElementById('app');
-    app.style.width = CW + 'px';
-    app.style.height = CH + 'px';
-    START_Y = CH - 80;
-    fitToViewport();
-  }
-
-  // ---- Mise a l'echelle responsive : le jeu garde sa resolution interne fixe (CW x CH)
-  // mais on redimensionne visuellement #app pour qu'il tienne dans n'importe quel ecran ----
-  var MIN_SCALE = 0.32;
-  function fitToViewport(){
-    var app = document.getElementById('app');
-    var pad = 16;
-    var availW = window.innerWidth - pad*2;
-    var availH = window.innerHeight - pad*2;
-    var scale = Math.min(availW/CW, availH/CH, 1);
-    scale = Math.max(scale, MIN_SCALE);
-    app.style.transform = 'scale(' + scale + ')';
-  }
-  window.addEventListener('resize', fitToViewport);
-  window.addEventListener('orientationchange', fitToViewport);
 
   // ---- Audio (synthetise, aucun fichier externe) ----
   var audioCtx = null;
@@ -326,11 +399,22 @@
     var t = audioCtx.currentTime;
     playTone(180, t, 0.18, 'sawtooth', 0.15);
   }
+  function playStreakSound(){
+    ensureAudio();
+    if(!audioCtx) return;
+    var t = audioCtx.currentTime;
+    var notes = [523, 659, 784, 1046];
+    for(var i=0;i<notes.length;i++){ playTone(notes[i], t + i*0.07, 0.2, 'square', 0.2); }
+  }
 
   function initLevel(lvl){
     S.level = lvl;
     S.lives = 3;
-    applyFieldSize(lvl);
+    S.levelMissed = false;
+    S.worldLength = worldLengthForLevel(lvl);
+    START_Y = S.worldLength - BOTTOM_MARGIN;
+    S.levelStartCoins = S.coins;
+    if(lvl > S.bestLevel){ S.bestLevel = lvl; }
     resetAttempt();
     persist();
   }
@@ -340,19 +424,48 @@
     S.shootReady = false;
     spawnDefenders(S.level);
     spawnObstacles(S.level);
-    S.gk.diving = false; S.gk.x = CW/2; S.gk.y = GOAL_H/2; S.gk.tilt = 0; S.gk.trail = [];
+    S.gk.diving = false; S.gk.x = CW/2; S.gk.y = GOAL_H/2; S.gk.tilt = 0; S.gk.trail = []; S.gk.confident = false;
     S.shotBall = null;
+    var maxCam = Math.max(0, S.worldLength - CH);
+    S.camera.y = clamp(S.player.y - CH*0.68, 0, maxCam);
   }
 
   function spawnDefenders(level){
-    var n = level; // +1 defenseur par niveau (niveau 1 = 1 defenseur)
+    var n = Math.min(level, MAX_DEFENDERS);
     var defenders = [];
     var top = SHOOT_Y + 40, bottom = START_Y - 60;
-    for(var i=0;i<n;i++){
-      var t = (i+1)/(n+1);
-      var y = bottom - t*(bottom-top);
-      var x = FIELD_MARGIN + 40 + Math.random()*(CW - 2*FIELD_MARGIN - 80);
-      defenders.push({ x:x, y:y, r:DEF_R, passed:false, eliminated:false, dir:null });
+
+    if(level >= LINE_ATTACK_LEVEL){
+      var perLine = level >= LINE_ATTACK_LEVEL_5 ? 5 : level >= LINE_ATTACK_LEVEL_4 ? 4 : level >= LINE_ATTACK_LEVEL_3 ? 3 : 2;
+      var lineCount = Math.ceil(n / perLine);
+      var baseSpacing = DEF_R*2 + 16;
+      var formations = ['tight','wide','diagonal'];
+      for(var l=0;l<lineCount;l++){
+        var count = Math.min(perLine, n - l*perLine);
+        var y = bottom - ((l+1)/(lineCount+1))*(bottom-top);
+        var formation = formations[Math.floor(Math.random()*formations.length)];
+        var spacing = formation==='wide' ? baseSpacing*1.8 : formation==='tight' ? baseSpacing*0.75 : baseSpacing;
+        var halfW = (count-1)*spacing/2;
+        var minX = FIELD_MARGIN + 30 + halfW;
+        var maxX = CW - FIELD_MARGIN - 30 - halfW;
+        var cx = minX + Math.random()*Math.max(0, maxX-minX);
+        for(var k=0;k<count;k++){
+          var offsetIdx = k - (count-1)/2;
+          var x = cx + offsetIdx*spacing;
+          var yy = y + (formation==='diagonal' ? offsetIdx*18 : 0);
+          defenders.push({ x:x, y:yy, r:DEF_R, passed:false, eliminated:false, dir:null,
+            activated:false, activationTimer:0, group:l,
+            jitter:(Math.random()-0.5)*0.6, blend:0.55+Math.random()*0.25 });
+        }
+      }
+    } else {
+      for(var i=0;i<n;i++){
+        var t = (i+1)/(n+1);
+        var y2 = bottom - t*(bottom-top);
+        var x2 = FIELD_MARGIN + 40 + Math.random()*(CW - 2*FIELD_MARGIN - 80);
+        defenders.push({ x:x2, y:y2, r:DEF_R, passed:false, eliminated:false, dir:null,
+          activated:false, activationTimer:0 });
+      }
     }
     S.defenders = defenders;
   }
@@ -361,10 +474,27 @@
     var obstacles = [];
     if(level >= 5){
       var count = Math.min(1 + Math.floor((level-5)/2), 8);
+      var playableW = CW - 2*FIELD_MARGIN - 60;
       for(var i=0;i<count;i++){
         var y = SHOOT_Y + 60 + Math.random()*(START_Y - SHOOT_Y - 160);
-        var x = FIELD_MARGIN + 30 + Math.random()*(CW - 2*FIELD_MARGIN - 60);
-        obstacles.push({ x:x, y:y, r:OBS_R, type: Math.random()<0.5 ? 'cone' : 'plank' });
+        if(level >= 14 && Math.random() < 0.4){
+          // NOUVEAU : barrage a deux planches, un seul passage etroit au milieu
+          var gap = 80 + Math.random()*30;
+          var half = Math.min(130, Math.max(30, ((playableW - gap)/2)/2));
+          var leftX = FIELD_MARGIN + 30 + half;
+          var rightX = CW - FIELD_MARGIN - 30 - half;
+          obstacles.push({ type:'plank', x:leftX, y:y, r:10, half:half });
+          obstacles.push({ type:'plank', x:rightX, y:y, r:10, half:half });
+        } else {
+          var x = FIELD_MARGIN + 30 + Math.random()*(CW - 2*FIELD_MARGIN - 60);
+          var isPlank = Math.random() < (level>=12 ? 0.65 : 0.5);
+          if(isPlank){
+            var half2 = Math.min(30 + level*3, 130, (playableW-80)/2);
+            obstacles.push({ type:'plank', x:x, y:y, r:10, half:half2 });
+          } else {
+            obstacles.push({ type:'cone', x:x, y:y, r:OBS_R });
+          }
+        }
       }
     }
     S.obstacles = obstacles;
@@ -373,7 +503,12 @@
   function collidesObstacle(x,y,r){
     for(var i=0;i<S.obstacles.length;i++){
       var o = S.obstacles[i];
-      if(Math.hypot(o.x-x, o.y-y) < o.r + r) return true;
+      if(o.type==='plank' && o.half){
+        var qx = clamp(x, o.x-o.half, o.x+o.half);
+        if(Math.hypot(qx-x, o.y-y) < o.r + r) return true;
+      } else {
+        if(Math.hypot(o.x-x, o.y-y) < o.r + r) return true;
+      }
     }
     return false;
   }
@@ -382,17 +517,35 @@
     S.floatingTexts.push({ x:x, y:y, text:text, color:color, size:size, bold:!!bold, life:1.0, vy:-42 });
   }
 
+  function spawnParticles(x,y,color,count){
+    for(var i=0;i<count;i++){
+      var ang = Math.random()*Math.PI*2;
+      var spd = 40 + Math.random()*110;
+      S.particles.push({
+        x:x, y:y, vx:Math.cos(ang)*spd, vy:Math.sin(ang)*spd,
+        life:1.0, size: 2 + Math.random()*2.5, color:color
+      });
+    }
+  }
+
   function spawnEliminationFeedback(list){
+    var col = shadeColor(getDefenderColor(), 55);
     if(list.length === 1){
       spawnFloatingText(list[0].x, list[0].y, '+10', '#ffffff', 17);
+      spawnParticles(list[0].x, list[0].y, col, 10);
       playCoinSound(1);
+      vibrate(25);
     } else {
       var avgX = 0, minY = Infinity;
-      for(var i=0;i<list.length;i++){ avgX += list[i].x; if(list[i].y < minY) minY = list[i].y; }
+      for(var i=0;i<list.length;i++){
+        avgX += list[i].x; if(list[i].y < minY) minY = list[i].y;
+        spawnParticles(list[i].x, list[i].y, col, 10);
+      }
       avgX /= list.length;
       var total = list.length*10;
       spawnFloatingText(avgX, minY-14, 'COMBO ! +10x' + list.length + ' (' + total + ')', '#ffd700', 19, true);
       playCoinSound(list.length);
+      vibrate([0,30,30,30]);
     }
   }
 
@@ -430,7 +583,10 @@
 
   function resolveShot(zone){
     S.screen = 'resolving';
-    S.gk.targetZone = Math.floor(Math.random()*3);
+    var readChance = Math.min(0.08 + S.level*0.018, 0.55);
+    var reads = Math.random() < readChance;
+    S.gk.confident = reads;
+    S.gk.targetZone = reads ? zone : Math.floor(Math.random()*3);
     S.gk.diving = true;
     S.gk.startX = S.gk.x;
     S.gk.trail = [];
@@ -467,22 +623,76 @@
     }
   }
 
+  function groupCenter(gid){
+    var sx=0, sy=0, c=0;
+    for(var i=0;i<S.defenders.length;i++){
+      var d = S.defenders[i];
+      if(d.group===gid && !d.eliminated && !d.passed){ sx+=d.x; sy+=d.y; c++; }
+    }
+    return c ? { x:sx/c, y:sy/c } : null;
+  }
+
+  function activateGroup(gid){
+    var t = 0.1 + Math.random()*0.25;
+    for(var i=0;i<S.defenders.length;i++){
+      var d = S.defenders[i];
+      if(d.group===gid && !d.eliminated && !d.passed){ d.activated = true; d.activationTimer = t; }
+    }
+  }
+
   function updateDefenders(dt){
     var speed = 70 + S.level*4;
     var eliminatedNow = [];
+
+    for(var g=0;g<S.defenders.length;g++){
+      var gd = S.defenders[g];
+      if(gd.eliminated || gd.passed || gd.activated || gd.group===undefined) continue;
+      var distG = Math.hypot(gd.x-S.player.x, gd.y-S.player.y);
+      if(distG <= ACTIVATION_RANGE || S.player.y < gd.y){ activateGroup(gd.group); }
+    }
+
     for(var i=0;i<S.defenders.length;i++){
       var def = S.defenders[i];
       if(def.eliminated || def.passed) continue;
 
-      if(S.level < 3){
-        if(!def.dir){ def.dir = normalize(S.player.x-def.x, S.player.y-def.y); }
-      } else {
-        def.dir = normalize(S.player.x-def.x, S.player.y-def.y);
+      if(!def.activated){
+        if(def.group===undefined){
+          var distToPlayer = Math.hypot(def.x-S.player.x, def.y-S.player.y);
+          if(distToPlayer <= ACTIVATION_RANGE || S.player.y < def.y){
+            def.activated = true;
+            def.activationTimer = Math.random()*0.3;
+          }
+        }
+        continue;
       }
-      def.x += def.dir.x*speed*dt;
-      def.y += def.dir.y*speed*dt;
-      def.x = clamp(def.x, FIELD_MARGIN+def.r, CW-FIELD_MARGIN-def.r);
-      def.y = clamp(def.y, GOAL_H+10, START_Y+60);
+
+      if(def.activationTimer > 0){
+        def.activationTimer -= dt;
+      } else {
+        if(def.group !== undefined){
+          // Melange direction de groupe + direction individuelle + leger angle propre :
+          // la ligne garde une cohesion mais n'est plus un bloc parfaitement rigide.
+          var c = groupCenter(def.group);
+          var groupDir = c ? normalize(S.player.x-c.x, S.player.y-c.y) : normalize(S.player.x-def.x, S.player.y-def.y);
+          var indivDir = normalize(S.player.x-def.x, S.player.y-def.y);
+          var blend = def.blend!==undefined ? def.blend : 0.65;
+          var bx = groupDir.x*blend + indivDir.x*(1-blend);
+          var by = groupDir.y*blend + indivDir.y*(1-blend);
+          var jitter = def.jitter || 0;
+          var cosj = Math.cos(jitter), sinj = Math.sin(jitter);
+          def.dir = normalize(bx*cosj - by*sinj, bx*sinj + by*cosj);
+        } else {
+          if(S.level < 3){
+            if(!def.dir){ def.dir = normalize(S.player.x-def.x, S.player.y-def.y); }
+          } else {
+            def.dir = normalize(S.player.x-def.x, S.player.y-def.y);
+          }
+        }
+        def.x += def.dir.x*speed*dt;
+        def.y += def.dir.y*speed*dt;
+        def.x = clamp(def.x, FIELD_MARGIN+def.r, CW-FIELD_MARGIN-def.r);
+        def.y = clamp(def.y, GOAL_H+10, START_Y+60);
+      }
 
       var dist = Math.hypot(def.x-S.player.x, def.y-S.player.y);
       if(dist < def.r + S.player.r){
@@ -500,14 +710,43 @@
     if(eliminatedNow.length) spawnEliminationFeedback(eliminatedNow);
   }
 
+  function hideResultCards(){
+    document.getElementById('complete-overlay').classList.add('hidden');
+    document.getElementById('gameover-overlay').classList.add('hidden');
+  }
+
+  function showCompleteCard(lvlDone, streakTxt){
+    S.screen = 'card';
+    S.message = '';
+    document.getElementById('complete-num').textContent = lvlDone;
+    document.getElementById('complete-unlocked').textContent = 'Niveau ' + (lvlDone+1) + ' d\u00e9bloqu\u00e9 \u2714';
+    document.getElementById('complete-coins').textContent = 'Pi\u00e8ces gagn\u00e9es : +' + Math.max(0, S.coins - S.levelStartCoins) + ' \uD83C\uDF69';
+    var st = document.getElementById('complete-streak');
+    if(streakTxt){ st.textContent = streakTxt; st.style.display = ''; }
+    else { st.style.display = 'none'; }
+    document.getElementById('complete-overlay').classList.remove('hidden');
+  }
+
+  function showGameoverCard(){
+    S.screen = 'card';
+    S.message = '';
+    document.getElementById('gameover-info').textContent = 'Niveau ' + S.level + ' \u2014 plus de vies !';
+    document.getElementById('gameover-penalty').textContent = 'P\u00e9nalit\u00e9 : \u2212' + LIFE_LOST_PENALTY + ' \uD83C\uDF69';
+    document.getElementById('gameover-overlay').classList.remove('hidden');
+  }
+
   function handleStolen(){
     S.lives--;
+    S.levelMissed = true;
     if(S.lives<=0){
       S.coins = Math.max(0, S.coins-LIFE_LOST_PENALTY);
       S.lives = 3;
       persist();
+      resetAttempt();
+      showGameoverCard();
+    } else {
+      resetAttempt();
     }
-    resetAttempt();
   }
 
   function checkShootReady(){
@@ -525,22 +764,43 @@
     }
   }
 
+  function updateParticles(dt){
+    for(var i=S.particles.length-1;i>=0;i--){
+      var p = S.particles[i];
+      p.x += p.vx*dt; p.y += p.vy*dt;
+      p.vy += 90*dt;
+      p.life -= dt/0.6;
+      if(p.life<=0) S.particles.splice(i,1);
+    }
+  }
+
+  function updateCamera(dt){
+    var maxCam = Math.max(0, S.worldLength - CH);
+    var target = clamp(S.player.y - CH*0.68, 0, maxCam);
+    S.camera.y += (target - S.camera.y) * Math.min(1, 7*dt);
+  }
+
   function update(dt){
     updateFloatingTexts(dt);
+    updateParticles(dt);
     if(S.screen==='playing'){
       updateMovement(dt);
       updateDefenders(dt);
       checkShootReady();
+      updateCamera(dt);
     } else if(S.screen==='resolving'){
+      updateCamera(dt);
       S.resolveElapsed += dt;
       if(S.resolvePhase==='diving'){
         var t = Math.min(S.resolveElapsed/0.55, 1);
         var ease = easeOut(t);
         var targetX = zoneCenterX(S.gk.targetZone);
+        var tiltMax = S.gk.confident ? 0.55 : 0.4;
+        var dipMax = S.gk.confident ? 22 : 17;
 
         S.gk.x = S.gk.startX + (targetX-S.gk.startX)*ease;
-        S.gk.y = GOAL_H/2 + (S.gk.targetZone!==1 ? 17*ease : 0);
-        S.gk.tilt = (S.gk.targetZone===0 ? -0.4 : S.gk.targetZone===2 ? 0.4 : 0) * ease;
+        S.gk.y = GOAL_H/2 + (S.gk.targetZone!==1 ? dipMax*ease : 0);
+        S.gk.tilt = (S.gk.targetZone===0 ? -tiltMax : S.gk.targetZone===2 ? tiltMax : 0) * ease;
         S.gk.trail.push({ x:S.gk.x, y:S.gk.y });
         if(S.gk.trail.length>6) S.gk.trail.shift();
 
@@ -556,54 +816,125 @@
             S.message = '\u26bd BUT !';
             S.pendingAdvance = true;
             spawnFloatingText(S.shotEnd.x, GOAL_H+16, '+50', '#ffd700', 22, true);
+            spawnParticles(S.shotEnd.x, GOAL_H, '#ffd700', 16);
             playGoalSound();
+            vibrate([0,60,40,120]);
           } else {
             S.lives--;
+            S.levelMissed = true;
             S.message = '\ud83e\udde4 ARR\u00caT\u00c9 !';
             S.pendingAdvance = false;
             S.shotBall.x = S.gk.x; S.shotBall.y = S.gk.y;
             playSaveSound();
+            vibrate(180);
           }
           persist();
         }
       } else if(S.resolvePhase==='result'){
         if(S.resolveElapsed > 1.2){
           if(S.pendingAdvance){
-            initLevel(S.level+1);
+            var lvlDone = S.level;
+            var streakTxt = '';
+            if(!S.levelMissed){
+              S.streak++;
+              if(S.streak>0 && S.streak%3===0){
+                var bonus = 100*(S.streak/3);
+                S.coins += bonus;
+                streakTxt = 'S\u00e9rie x'+S.streak+' ! Bonus +'+bonus+' \uD83C\uDF69';
+                playStreakSound();
+                vibrate([0,50,50,50,50,150]);
+              }
+            } else {
+              S.streak = 0;
+            }
+            S.bestLevel = Math.max(S.bestLevel, lvlDone+1);
+            persist();
+            resetAttempt();
+            showCompleteCard(lvlDone, streakTxt);
           } else {
             if(S.lives<=0){
               S.coins = Math.max(0, S.coins-LIFE_LOST_PENALTY);
               S.lives = 3;
               persist();
+              resetAttempt();
+              showGameoverCard();
+            } else {
+              resetAttempt();
+              S.screen = 'playing';
+              S.message = '';
             }
-            resetAttempt();
           }
-          S.screen = 'playing';
-          S.message = '';
         }
       }
     }
   }
 
   // ---- Render ----
+  function scrY(worldY){ return worldY - S.camera.y; }
+
+  function drawStadium(){
+    ctx.fillStyle = '#0b1f12';
+    ctx.fillRect(0, 0, FIELD_MARGIN, CH);
+    ctx.fillRect(CW-FIELD_MARGIN, 0, FIELD_MARGIN, CH);
+    var offset = (S.camera.y*0.4) % 40;
+    ctx.fillStyle = 'rgba(255,255,255,.12)';
+    for(var ry = -40 + (40 - offset%40); ry < CH+40; ry += 40){
+      for(var cx=4; cx<FIELD_MARGIN-5; cx+=10){ ctx.fillRect(cx, ry, 5, 5); }
+      for(var cx2=CW-FIELD_MARGIN+5; cx2<CW-4; cx2+=10){ ctx.fillRect(cx2, ry, 5, 5); }
+    }
+    var lampY = scrY(-14);
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(FIELD_MARGIN-16, lampY, 6, 20);
+    ctx.fillRect(CW-FIELD_MARGIN+10, lampY, 6, 20);
+    ctx.fillStyle = 'rgba(255,247,200,.85)';
+    ctx.beginPath(); ctx.arc(FIELD_MARGIN-13, lampY, 6, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(CW-FIELD_MARGIN+13, lampY, 6, 0, Math.PI*2); ctx.fill();
+  }
+
   function drawField(){
-    var stripeH = CH/12;
-    for(var i=0;i<12;i++){
-      ctx.fillStyle = (i%2===0) ? '#2f7d3d' : '#357f45';
-      ctx.fillRect(0, i*stripeH, CW, stripeH);
+    var stripeH = 84;
+    var firstIdx = Math.floor(S.camera.y / stripeH) - 1;
+    for(var idx = firstIdx; idx*stripeH < S.camera.y + CH + stripeH; idx++){
+      ctx.fillStyle = (idx%2===0) ? '#2f7d3d' : '#357f45';
+      var sy = idx*stripeH - S.camera.y;
+      ctx.fillRect(FIELD_MARGIN, sy, CW-2*FIELD_MARGIN, stripeH);
     }
     ctx.strokeStyle = 'rgba(255,255,255,.5)';
     ctx.lineWidth = 3;
-    ctx.strokeRect(FIELD_MARGIN, GOAL_H, CW-2*FIELD_MARGIN, CH-GOAL_H-20);
+    ctx.beginPath();
+    ctx.moveTo(FIELD_MARGIN, 0); ctx.lineTo(FIELD_MARGIN, CH);
+    ctx.moveTo(CW-FIELD_MARGIN, 0); ctx.lineTo(CW-FIELD_MARGIN, CH);
+    ctx.stroke();
+  }
+
+  function drawPenaltyBox(){
+    // NOUVEAU : surface de reparation visible, du but jusqu'a la limite de tir (SHOOT_Y)
+    var boxInset = 46;
+    var y0 = scrY(GOAL_H), y1 = scrY(SHOOT_Y);
+    if(y1 < -20 || y0 > CH+20) return;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,.55)';
+    ctx.lineWidth = 2.5;
+    ctx.strokeRect(FIELD_MARGIN+boxInset, y0, CW-2*FIELD_MARGIN-2*boxInset, y1-y0);
+    // petite surface de but (6 metres), plus proche du but
+    var smallInset = boxInset + 46;
+    var ySmall = scrY(GOAL_H + (SHOOT_Y-GOAL_H)*0.32);
+    ctx.strokeRect(FIELD_MARGIN+smallInset, y0, CW-2*FIELD_MARGIN-2*smallInset, ySmall-y0);
+    // arc (le "rond" de surface) au bord de la grande surface
+    ctx.beginPath();
+    ctx.arc(CW/2, y1, 34, Math.PI*0.15, Math.PI*0.85);
+    ctx.stroke();
+    ctx.restore();
   }
 
   function drawGoal(){
+    var y0 = scrY(6), y1 = scrY(GOAL_H);
     ctx.fillStyle = getGoalColor();
-    ctx.fillRect(FIELD_MARGIN, 6, CW-2*FIELD_MARGIN, GOAL_H-6);
+    ctx.fillRect(FIELD_MARGIN, y0, CW-2*FIELD_MARGIN, y1-y0);
     ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
     for(var i=1;i<3;i++){
       var x = FIELD_MARGIN + (CW-2*FIELD_MARGIN)*i/3;
-      ctx.beginPath(); ctx.moveTo(x,6); ctx.lineTo(x,GOAL_H); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x,y0); ctx.lineTo(x,y1); ctx.stroke();
     }
   }
 
@@ -611,15 +942,15 @@
     for(var i=0;i<S.gk.trail.length;i++){
       var p = S.gk.trail[i];
       var alpha = ((i+1)/S.gk.trail.length) * 0.22;
-      ctx.beginPath(); ctx.arc(p.x, p.y, GK_R, 0, Math.PI*2);
+      ctx.beginPath(); ctx.arc(p.x, scrY(p.y), GK_R, 0, Math.PI*2);
       ctx.fillStyle = 'rgba(29,53,87,' + alpha + ')';
       ctx.fill();
     }
     ctx.save();
-    ctx.translate(S.gk.x, S.gk.y);
+    ctx.translate(S.gk.x, scrY(S.gk.y));
     ctx.rotate(S.gk.tilt || 0);
     var grad = ctx.createRadialGradient(-6,-7,4,0,0,GK_R);
-    grad.addColorStop(0,'#4d7ebf');
+    grad.addColorStop(0, S.gk.confident ? '#6fa8dc' : '#4d7ebf');
     grad.addColorStop(1,'#1d3557');
     ctx.beginPath(); ctx.arc(0,0,GK_R,0,Math.PI*2);
     ctx.fillStyle = grad; ctx.fill();
@@ -641,18 +972,21 @@
     for(var i=0;i<S.defenders.length;i++){
       var d = S.defenders[i];
       if(d.eliminated) continue;
+      var sy = scrY(d.y);
+      if(sy < -40 || sy > CH+40) continue;
       ctx.save();
-      var grad = ctx.createRadialGradient(d.x-5, d.y-6, 3, d.x, d.y, d.r);
+      ctx.globalAlpha = d.activated ? 1 : 0.72;
+      var grad = ctx.createRadialGradient(d.x-5, sy-6, 3, d.x, sy, d.r);
       grad.addColorStop(0, lightC);
       grad.addColorStop(1, darkC);
-      ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI*2);
+      ctx.beginPath(); ctx.arc(d.x, sy, d.r, 0, Math.PI*2);
       ctx.fillStyle = grad; ctx.fill();
       ctx.lineWidth = 2; ctx.strokeStyle = strokeC; ctx.stroke();
-      ctx.beginPath(); ctx.ellipse(d.x-5, d.y-6, 4, 2.4, Math.PI/4, 0, Math.PI*2);
+      ctx.beginPath(); ctx.ellipse(d.x-5, sy-6, 4, 2.4, Math.PI/4, 0, Math.PI*2);
       ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fill();
       if(d.dir){
         var ang = Math.atan2(d.dir.y, d.dir.x);
-        ctx.translate(d.x, d.y); ctx.rotate(ang);
+        ctx.translate(d.x, sy); ctx.rotate(ang);
         ctx.beginPath();
         ctx.moveTo(d.r+3, 0); ctx.lineTo(d.r-5, -5); ctx.lineTo(d.r-5, 5); ctx.closePath();
         ctx.fillStyle = '#ffba08'; ctx.fill();
@@ -664,20 +998,36 @@
   function drawObstacles(){
     for(var i=0;i<S.obstacles.length;i++){
       var o = S.obstacles[i];
-      if(o.type==='cone'){
+      var sy = scrY(o.y);
+      if(sy < -60 || sy > CH+60) continue;
+      if(o.type==='plank'){
+        ctx.fillStyle = '#7f5539';
+        ctx.fillRect(o.x-o.half, sy-o.r, o.half*2, o.r*2);
+        ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 2;
+        ctx.strokeRect(o.x-o.half, sy-o.r, o.half*2, o.r*2);
+        ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(o.x-o.half+4, sy); ctx.lineTo(o.x+o.half-4, sy); ctx.stroke();
+      } else {
         ctx.fillStyle = '#f77f00';
         ctx.beginPath();
-        ctx.moveTo(o.x, o.y-o.r);
-        ctx.lineTo(o.x-o.r, o.y+o.r);
-        ctx.lineTo(o.x+o.r, o.y+o.r);
+        ctx.moveTo(o.x, sy-o.r);
+        ctx.lineTo(o.x-o.r, sy+o.r);
+        ctx.lineTo(o.x+o.r, sy+o.r);
         ctx.closePath(); ctx.fill();
         ctx.fillStyle = '#fff';
-        ctx.fillRect(o.x-o.r*0.5, o.y+o.r*0.2, o.r, 4);
-      } else {
-        ctx.fillStyle = '#7f5539';
-        ctx.fillRect(o.x-o.r, o.y-o.r*0.4, o.r*2, o.r*0.8);
+        ctx.fillRect(o.x-o.r*0.5, sy+o.r*0.2, o.r, 4);
       }
     }
+  }
+
+  function drawBallShadow(bx, by){
+    var r = S.player.r;
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(bx, by + r*0.85, r*0.9, r*0.34, 0, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,.3)';
+    ctx.fill();
+    ctx.restore();
   }
 
   function drawBallSeams(x,y,r){
@@ -807,6 +1157,15 @@
     drawBallSeams(bx, by, r);
     ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI*2);
     ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 1.2; ctx.stroke();
+
+    ctx.save();
+    ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI*2); ctx.clip();
+    var gloss = ctx.createRadialGradient(bx-r*0.35, by-r*0.4, 1, bx-r*0.35, by-r*0.4, r*0.95);
+    gloss.addColorStop(0, 'rgba(255,255,255,.55)');
+    gloss.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gloss;
+    ctx.fillRect(bx-r, by-r, r*2, r*2);
+    ctx.restore();
   }
 
   function drawFloatingTexts(){
@@ -819,35 +1178,54 @@
       ctx.fillStyle = f.color;
       ctx.strokeStyle = 'rgba(0,0,0,.5)';
       ctx.lineWidth = 3;
-      ctx.strokeText(f.text, f.x, f.y);
-      ctx.fillText(f.text, f.x, f.y);
+      var sy = f.text.indexOf('S\u00c9RIE')===0 ? f.y : scrY(f.y);
+      ctx.strokeText(f.text, f.x, sy);
+      ctx.fillText(f.text, f.x, sy);
+      ctx.restore();
+    }
+  }
+
+  function drawParticles(){
+    for(var i=0;i<S.particles.length;i++){
+      var p = S.particles[i];
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, scrY(p.y), p.size, 0, Math.PI*2);
+      ctx.fill();
       ctx.restore();
     }
   }
 
   function render(){
     ctx.clearRect(0,0,CW,CH);
+    drawStadium();
     drawField();
+    drawPenaltyBox();
     drawGoal();
     drawObstacles();
     drawGK();
     drawDefenders();
     var bx, by;
-    if(S.screen==='resolving' && S.shotBall){ bx = S.shotBall.x; by = S.shotBall.y; }
-    else { bx = S.player.x; by = S.player.y; }
+    if(S.screen==='resolving' && S.shotBall){ bx = S.shotBall.x; by = scrY(S.shotBall.y); }
+    else { bx = S.player.x; by = scrY(S.player.y); }
+    drawBallShadow(bx, by);
     drawBall(bx, by);
+    drawParticles();
     drawFloatingTexts();
     if(S.screen==='playing' && S.shootReady){
       ctx.fillStyle = 'rgba(255,255,255,.9)';
       ctx.font = '13px Segoe UI'; ctx.textAlign = 'center';
       var hintTxt = isTouchLayout() ? 'Appuie sur un bouton de tir' : 'Tire : Z / Q / D + Espace';
-      ctx.fillText(hintTxt, CW/2, S.player.y-30);
+      ctx.fillText(hintTxt, CW/2, scrY(S.player.y)-30);
     }
   }
 
   function updateHUD(){
     document.getElementById('hud-level').textContent = S.level;
     document.getElementById('hud-coins').textContent = S.coins;
+    document.getElementById('menu-best').textContent = S.bestLevel;
     var livesEl = document.getElementById('hud-lives');
     livesEl.innerHTML = '';
     for(var i=0;i<3;i++){
@@ -887,18 +1265,110 @@
     requestAnimationFrame(loop);
   }
 
+  // ---- Mise a l'echelle responsive (ecran fixe adapte a la fenetre) ----
+  var HUD_BAR_H = 92;
+  var MIN_SCALE = 0.32;
+  function fitToViewport(){
+    var app = document.getElementById('app');
+    var pad = 16;
+    var availW = window.innerWidth - pad*2;
+    var availH = window.innerHeight - pad*2;
+    var scale = Math.min(availW/CW, availH/(CH+HUD_BAR_H), 1);
+    scale = Math.max(scale, MIN_SCALE);
+    app.style.transform = 'scale(' + scale + ')';
+  }
+  window.addEventListener('resize', fitToViewport);
+  window.addEventListener('orientationchange', fitToViewport);
+
   // ---- UI wiring ----
   document.getElementById('btn-play').onclick = function(){
     ensureAudio();
+    hideResultCards();
     document.getElementById('menu-overlay').classList.add('hidden');
     document.getElementById('hint-play').classList.remove('hidden');
     if(!S.started){ S.started = true; initLevel(S.level); }
     S.screen = 'playing';
   };
+
+  function buildLevels(){
+    document.getElementById('levels-best').textContent = S.bestLevel;
+    var grid = document.getElementById('levels-grid');
+    grid.innerHTML = '';
+    var maxShow = Math.max(S.bestLevel + 8, 10);
+    for(var i=1;i<=maxShow;i++){
+      var b = document.createElement('button');
+      var done = i < S.bestLevel;
+      var unlocked = i <= S.bestLevel;
+      b.className = 'level-cell' + (done ? ' done' : '') + (i===S.bestLevel ? ' current' : '');
+      if(!unlocked){
+        b.classList.add('locked');
+        b.disabled = true;
+        b.innerHTML = '<span class="lc-num">'+i+'</span><span class="lc-badge">\uD83D\uDD12</span>';
+      } else {
+        b.innerHTML = '<span class="lc-num">'+i+'</span><span class="lc-badge">'+(done ? '\u2714' : '\u25B6')+'</span>';
+        (function(lvl){
+          b.onclick = function(){ startLevel(lvl); };
+        })(i);
+      }
+      grid.appendChild(b);
+    }
+  }
+
+  function startLevel(lvl){
+    hideResultCards();
+    document.getElementById('levels-overlay').classList.add('hidden');
+    document.getElementById('menu-overlay').classList.add('hidden');
+    document.getElementById('hint-play').classList.remove('hidden');
+    document.getElementById('btn-play').textContent = 'Reprendre';
+    S.started = true;
+    initLevel(lvl);
+    S.screen = 'playing';
+  }
+
+  document.getElementById('btn-levels').onclick = function(){
+    buildLevels();
+    document.getElementById('menu-overlay').classList.add('hidden');
+    document.getElementById('levels-overlay').classList.remove('hidden');
+  };
+  document.getElementById('btn-levels-back').onclick = function(){
+    document.getElementById('levels-overlay').classList.add('hidden');
+    document.getElementById('menu-overlay').classList.remove('hidden');
+  };
+
+  document.getElementById('btn-next-level').onclick = function(){
+    hideResultCards();
+    document.getElementById('hint-play').classList.remove('hidden');
+    initLevel(S.level + 1);
+    S.screen = 'playing';
+  };
+  document.getElementById('btn-complete-menu').onclick = function(){
+    hideResultCards();
+    document.getElementById('hint-play').classList.add('hidden');
+    document.getElementById('menu-overlay').classList.remove('hidden');
+    document.getElementById('btn-play').textContent = 'Jouer';
+  };
+  document.getElementById('btn-retry').onclick = function(){
+    hideResultCards();
+    document.getElementById('hint-play').classList.remove('hidden');
+    S.screen = 'playing';
+  };
+  document.getElementById('btn-gameover-menu').onclick = function(){
+    hideResultCards();
+    document.getElementById('hint-play').classList.add('hidden');
+    document.getElementById('menu-overlay').classList.remove('hidden');
+    document.getElementById('btn-play').textContent = 'Jouer';
+  };
+
   document.getElementById('btn-shop').onclick = function(){ openShop(); };
   document.getElementById('btn-shop-back').onclick = function(){
     document.getElementById('shop-overlay').classList.add('hidden');
     document.getElementById('menu-overlay').classList.remove('hidden');
+  };
+  document.getElementById('btn-pause').onclick = function(){ ensureAudio(); togglePause(); };
+  document.getElementById('btn-shop-ingame').onclick = function(){
+    ensureAudio();
+    if(S.screen==='playing'){ togglePause(); }
+    openShop();
   };
   document.getElementById('tab-ball').onclick = function(){ S.shopTab='ball'; updateTabs(); renderShop(); };
   document.getElementById('tab-goal').onclick = function(){ S.shopTab='goal'; updateTabs(); renderShop(); };
@@ -924,6 +1394,12 @@
     var swatch = document.createElement('div');
     swatch.className = 'skin-ball';
     swatch.style.background = item.color;
+    if(!owned){
+      var lock = document.createElement('span');
+      lock.className = 'lock-badge';
+      lock.textContent = '\uD83D\uDD12';
+      swatch.appendChild(lock);
+    }
     var label = document.createElement('div'); label.textContent = item.name;
     var btn = document.createElement('button');
     if(owned){
