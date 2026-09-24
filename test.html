@@ -10,9 +10,10 @@
     --orange:#ff9500; --orange-dark:#e07d00; --red:#e6394a; --teal:#2ec4b6;
   }
   html,body{margin:0;padding:0;background:#0e1a12;color:var(--ink);
-    font-family:"Arial Black","Segoe UI",Arial,sans-serif;width:100%;height:100%;overflow:hidden;}
+    font-family:"Arial Black","Segoe UI",Arial,sans-serif;width:100%;height:100%;overflow:hidden;
+    position:fixed;inset:0;touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;}
   #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
-    overflow:auto;-webkit-overflow-scrolling:touch;}
+    overflow:auto;-webkit-overflow-scrolling:touch;touch-action:none;overscroll-behavior:none;}
   #app{position:relative;width:480px;height:852px;display:flex;flex-direction:column;
     box-shadow:0 0 50px rgba(0,0,0,.6);border-radius:14px;overflow:hidden;
     flex-shrink:0;margin:20px 0;transform-origin:center center;}
@@ -176,6 +177,7 @@
       <div class="result-line" id="complete-unlocked"></div>
       <div class="result-line" id="complete-coins"></div>
       <div class="result-line" id="complete-streak" style="display:none;"></div>
+      <div class="result-line" id="complete-stats" style="display:none;font-size:11px;"></div>
       <button id="btn-next-level">Niveau suivant</button>
       <button class="secondary" id="btn-complete-menu">Menu</button>
     </div>
@@ -247,6 +249,13 @@
     { id:'tricolore',  name:'Tricolore',   price:2600, color:'#ffffff', pattern:'flag'    }
   ];
 
+  var GOLD_GOALS_NEEDED = 25;
+  // NOUVEAU : variante doree de chaque ballon, debloquee en marquant avec ce skin (pas d'achat)
+  skins.forEach(function(base){
+    skins.push({ id: base.id+'-or', name: base.name+' Dor\u00e9', price:null, color: base.color,
+      pattern: base.pattern, gold:true, baseId: base.id, goalsNeeded: GOLD_GOALS_NEEDED });
+  });
+
   var goalColors = [
     { id:'blanc', name:'Blanc (d\u00e9faut)', price:0,    color:'#e9e9e9' },
     { id:'jaune', name:'Jaune',               price:900,  color:'#ffd60a' },
@@ -276,7 +285,8 @@
       coins:0, level:1, bestLevel:1,
       unlocked:['classic'], equipped:'classic',
       unlockedGoal:['blanc'], equippedGoal:'blanc',
-      unlockedDef:['rouge'], equippedDef:'rouge'
+      unlockedDef:['rouge'], equippedDef:'rouge',
+      goalsPerSkin:{}
     };
   }
   var persisted = loadSave();
@@ -295,17 +305,20 @@
     equippedGoal: persisted.equippedGoal || 'blanc',
     unlockedDef: persisted.unlockedDef || ['rouge'],
     equippedDef: persisted.equippedDef || 'rouge',
+    goalsPerSkin: persisted.goalsPerSkin || {},
     shopTab: 'ball',
     worldLength: 760,
     camera: { y: 0 },
     streak: 0,
     levelMissed: false,
+    slowmo: 0,
+    levelStats: { distance:0, maxSpeed:0, defendersPassed:0 },
     player: { x: CW/2, y: START_Y, r: BALL_R },
     defenders: [],
     obstacles: [],
     floatingTexts: [],
     particles: [],
-    gk: { x: CW/2, y: GOAL_H/2, startX: CW/2, targetZone:1, diving:false, tilt:0, trail:[], confident:false },
+    gk: { x: CW/2, y: GOAL_H/2, startX: CW/2, targetZone:1, diving:false, tilt:0, trail:[], confident:false, instinctFlash:0 },
     shootReady: false,
     keys: {},
     message: '',
@@ -325,7 +338,8 @@
       coins: S.coins, level: S.level, bestLevel: S.bestLevel,
       unlocked: S.unlocked, equipped: S.equipped,
       unlockedGoal: S.unlockedGoal, equippedGoal: S.equippedGoal,
-      unlockedDef: S.unlockedDef, equippedDef: S.equippedDef
+      unlockedDef: S.unlockedDef, equippedDef: S.equippedDef,
+      goalsPerSkin: S.goalsPerSkin
     }));
   }
 
@@ -357,6 +371,23 @@
   }
   function vibrate(pattern){
     if(navigator.vibrate){ try{ navigator.vibrate(pattern); }catch(e){} }
+  }
+
+  // NOUVEAU : suivi des buts marques avec le skin equipe -> deverrouille sa variante doree
+  function trackGoalForSkin(){
+    var eq = S.equipped;
+    var skinData = null;
+    for(var i=0;i<skins.length;i++){ if(skins[i].id===eq){ skinData=skins[i]; break; } }
+    if(skinData && skinData.gold) return; // deja une variante doree, rien a suivre
+    S.goalsPerSkin[eq] = (S.goalsPerSkin[eq]||0) + 1;
+    var goldId = eq + '-or';
+    if(S.goalsPerSkin[eq] >= GOLD_GOALS_NEEDED && S.unlocked.indexOf(goldId) === -1){
+      S.unlocked.push(goldId);
+      spawnFloatingText(S.player.x, S.player.y-40, 'SKIN DOR\u00c9 D\u00c9BLOQU\u00c9 !', '#ffd700', 19, true);
+      playStreakSound();
+      vibrate([0,60,60,60,60,200]);
+    }
+    persist();
   }
 
   // ---- Audio (synthetise, aucun fichier externe) ----
@@ -422,9 +453,11 @@
   function resetAttempt(){
     S.player.x = CW/2; S.player.y = START_Y;
     S.shootReady = false;
+    S.levelStats = { distance:0, maxSpeed:0, defendersPassed:0 };
+    S.slowmo = 0;
     spawnDefenders(S.level);
     spawnObstacles(S.level);
-    S.gk.diving = false; S.gk.x = CW/2; S.gk.y = GOAL_H/2; S.gk.tilt = 0; S.gk.trail = []; S.gk.confident = false;
+    S.gk.diving = false; S.gk.x = CW/2; S.gk.y = GOAL_H/2; S.gk.tilt = 0; S.gk.trail = []; S.gk.confident = false; S.gk.instinctFlash = 0;
     S.shotBall = null;
     var maxCam = Math.max(0, S.worldLength - CH);
     S.camera.y = clamp(S.player.y - CH*0.68, 0, maxCam);
@@ -468,7 +501,17 @@
           activated:false, activationTimer:0 });
       }
     }
+    addBossDefender(level, defenders);
     S.defenders = defenders;
+  }
+
+  function addBossDefender(level, defenders){
+    if(level % 10 !== 0) return;
+    defenders.push({
+      x: CW/2, y: (SHOOT_Y+40 + (START_Y-60))/2, r: DEF_R*1.9,
+      passed:false, eliminated:false, dir:null,
+      activated:true, activationTimer:0, boss:true
+    });
   }
 
   function spawnObstacles(level){
@@ -555,13 +598,24 @@
     ensureAudio();
     var k = e.key.toLowerCase();
     if(k==='z'||k==='q'||k==='s'||k==='d'){ S.keys[k]=true; }
-    if(k===' '){ e.preventDefault(); if(!spaceContinue()) tryShoot(); }
+    if(k===' '){
+      e.preventDefault();
+      if(S.slowmo>0){ S.slowmo=0; return; }
+      if(!spaceContinue()) tryShoot();
+    }
     if(k==='escape'){ togglePause(); }
   });
   window.addEventListener('keyup', function(e){
     var k = e.key.toLowerCase();
     if(k==='z'||k==='q'||k==='s'||k==='d'){ S.keys[k]=false; }
   });
+
+  // NOUVEAU : verrouillage tactile global (empeche le "rebond" elastique d'iOS Safari,
+  // notamment en mode "ajoute a l'ecran d'accueil"). Les zones interactives (joystick,
+  // boutons) appellent deja leur propre preventDefault, celui-ci couvre le reste de la page.
+  document.addEventListener('touchmove', function(e){ e.preventDefault(); }, { passive:false });
+  document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
+  document.addEventListener('dblclick', function(e){ e.preventDefault(); });
 
   function togglePause(){
     if(S.screen==='playing'){
@@ -591,6 +645,8 @@
     S.gk.diving = true;
     S.gk.startX = S.gk.x;
     S.gk.trail = [];
+    // NOUVEAU : flash d'instinct - a haut niveau, un bref eclat trahit le cote du gardien
+    S.gk.instinctFlash = (S.level >= 15) ? 0.16 : 0;
     S.resolvePhase = 'diving';
     S.resolveElapsed = 0;
     S.pendingShotZone = zone;
@@ -613,13 +669,21 @@
     if(len > 1){ dx/=len; dy/=len; len=1; }
     if(len > 0.001){
       var speed = 210*speedMult();
-      var nx = S.player.x + dx*speed*dt;
+      S.levelStats.maxSpeed = Math.max(S.levelStats.maxSpeed, speed);
+      var prevY = S.player.y;
+      var nx = S.player.x + dx*speed*dt + windForce()*dt;
       var ny = S.player.y + dy*speed*dt;
       if(!collidesObstacle(nx, S.player.y, S.player.r)){
         S.player.x = clamp(nx, FIELD_MARGIN+S.player.r, CW-FIELD_MARGIN-S.player.r);
       }
       if(!collidesObstacle(S.player.x, ny, S.player.r)){
         S.player.y = clamp(ny, GOAL_H+10, START_Y+40);
+      }
+      if(prevY > S.player.y) S.levelStats.distance += (prevY - S.player.y);
+    } else {
+      var wf = windForce()*dt;
+      if(wf !== 0 && !collidesObstacle(S.player.x+wf, S.player.y, S.player.r)){
+        S.player.x = clamp(S.player.x+wf, FIELD_MARGIN+S.player.r, CW-FIELD_MARGIN-S.player.r);
       }
     }
   }
@@ -670,7 +734,9 @@
       if(def.activationTimer > 0){
         def.activationTimer -= dt;
       } else {
-        if(def.group !== undefined){
+        if(def.boss){
+          def.dir = normalize(S.player.x-def.x, S.player.y-def.y);
+        } else if(def.group !== undefined){
           // Melange direction de groupe + direction individuelle + leger angle propre :
           // la ligne garde une cohesion mais n'est plus un bloc parfaitement rigide.
           var c = groupCenter(def.group);
@@ -689,7 +755,7 @@
             def.dir = normalize(S.player.x-def.x, S.player.y-def.y);
           }
         }
-        var tm = tackleMult(def, dt);
+        var tm = def.boss ? 1.15 : tackleMult(def, dt);
         def.x += def.dir.x*speed*tm*dt;
         def.y += def.dir.y*speed*tm*dt;
         def.x = clamp(def.x, FIELD_MARGIN+def.r, CW-FIELD_MARGIN-def.r);
@@ -699,7 +765,7 @@
       var dist = Math.hypot(def.x-S.player.x, def.y-S.player.y);
       if(dist < def.r + S.player.r){
         if(S.player.y < def.y){
-          def.passed = true; def.eliminated = true; S.coins += 10; eliminatedNow.push({x:def.x,y:def.y}); persist();
+          def.passed = true; def.eliminated = true; S.coins += (def.boss?40:10); S.levelStats.defendersPassed++; eliminatedNow.push({x:def.x,y:def.y}); persist();
         } else if(useShield()){
           def.passed = true; def.eliminated = true; eliminatedNow.push({x:def.x,y:def.y});
         } else {
@@ -708,7 +774,7 @@
           return;
         }
       } else if(S.player.y < def.y - def.r*0.3){
-        def.passed = true; def.eliminated = true; S.coins += 10; eliminatedNow.push({x:def.x,y:def.y}); persist();
+        def.passed = true; def.eliminated = true; S.coins += (def.boss?40:10); S.levelStats.defendersPassed++; eliminatedNow.push({x:def.x,y:def.y}); persist();
       }
     }
     if(eliminatedNow.length) spawnEliminationFeedback(eliminatedNow);
@@ -719,7 +785,7 @@
     document.getElementById('gameover-overlay').classList.add('hidden');
   }
 
-  function showCompleteCard(lvlDone, streakTxt){
+  function showCompleteCard(lvlDone, streakTxt, stats){
     S.screen = 'card';
     S.message = '';
     document.getElementById('complete-num').textContent = lvlDone;
@@ -728,6 +794,12 @@
     var st = document.getElementById('complete-streak');
     if(streakTxt){ st.textContent = streakTxt; st.style.display = ''; }
     else { st.style.display = 'none'; }
+    if(stats){
+      document.getElementById('complete-stats').textContent =
+        'Distance : ' + Math.round(stats.distance/10) + 'm  \u2022  D\u00e9fenseurs esquiv\u00e9s : ' + stats.defendersPassed +
+        '  \u2022  Vitesse de pointe : ' + Math.round(stats.maxSpeed);
+      document.getElementById('complete-stats').style.display = '';
+    }
     document.getElementById('complete-overlay').classList.remove('hidden');
   }
 
@@ -791,6 +863,7 @@
   }
 
   function update(dt){
+    if(S.slowmo>0){ S.slowmo = Math.max(0, S.slowmo-dt); dt = dt*0.25; }
     updateFloatingTexts(dt);
     updateParticles(dt);
     if(S.screen==='playing'){
@@ -803,6 +876,7 @@
       updateCamera(dt);
       S.resolveElapsed += dt;
       if(S.resolvePhase==='diving'){
+        if(S.gk.instinctFlash>0){ S.gk.instinctFlash = Math.max(0, S.gk.instinctFlash-dt); }
         var t = Math.min(S.resolveElapsed/0.55, 1);
         var ease = easeOut(t);
         var targetX = zoneCenterX(S.gk.targetZone);
@@ -831,10 +905,13 @@
             playGoalSound();
             onGoal(S.shotEnd.x);
             vibrate([0,60,40,120]);
+            trackGoalForSkin();
+            // NOUVEAU : petit replay au ralenti apres un but (passable avec Espace / un tap)
+            S.slowmo = 1.1;
           } else {
             S.lives--;
             S.levelMissed = true;
-            S.message = '\ud83e\udde4 ARR\u00caT\u00c9 !';
+            S.message = S.gk.confident ? '\ud83e\udde4 ARR\u00caT\u00c9 !' : '\ud83e\udde4 SI PR\u00c8S !';
             S.pendingAdvance = false;
             S.shotBall.x = S.gk.x; S.shotBall.y = S.gk.y;
             playSaveSound();
@@ -859,10 +936,11 @@
             } else {
               S.streak = 0;
             }
+            var statsSnapshot = { distance: S.levelStats.distance, maxSpeed: S.levelStats.maxSpeed, defendersPassed: S.levelStats.defendersPassed };
             S.bestLevel = Math.max(S.bestLevel, lvlDone+1);
             persist();
             resetAttempt();
-            showCompleteCard(lvlDone, streakTxt);
+            showCompleteCard(lvlDone, streakTxt, statsSnapshot);
           } else {
             if(S.lives<=0){
               S.coins = Math.max(0, S.coins-LIFE_LOST_PENALTY);
@@ -920,7 +998,6 @@
   }
 
   function drawPenaltyBox(){
-    // NOUVEAU : surface de reparation visible, du but jusqu'a la limite de tir (SHOOT_Y)
     var boxInset = 46;
     var y0 = scrY(GOAL_H), y1 = scrY(SHOOT_Y);
     if(y1 < -20 || y0 > CH+20) return;
@@ -928,11 +1005,9 @@
     ctx.strokeStyle = 'rgba(255,255,255,.55)';
     ctx.lineWidth = 2.5;
     ctx.strokeRect(FIELD_MARGIN+boxInset, y0, CW-2*FIELD_MARGIN-2*boxInset, y1-y0);
-    // petite surface de but (6 metres), plus proche du but
     var smallInset = boxInset + 46;
     var ySmall = scrY(GOAL_H + (SHOOT_Y-GOAL_H)*0.32);
     ctx.strokeRect(FIELD_MARGIN+smallInset, y0, CW-2*FIELD_MARGIN-2*smallInset, ySmall-y0);
-    // arc (le "rond" de surface) au bord de la grande surface
     ctx.beginPath();
     ctx.arc(CW/2, y1, 34, Math.PI*0.15, Math.PI*0.85);
     ctx.stroke();
@@ -974,6 +1049,24 @@
     ctx.beginPath(); ctx.arc(-GK_R, 4, 6, 0, Math.PI*2); ctx.stroke();
     ctx.beginPath(); ctx.arc(GK_R, 4, 6, 0, Math.PI*2); ctx.stroke();
     ctx.restore();
+    // NOUVEAU : flash d'instinct - bref eclat juste avant le plongeon, cote du gardien
+    if(S.gk.instinctFlash > 0){
+      var fa = S.gk.instinctFlash / 0.16;
+      var fx = S.gk.startX + (S.gk.targetZone===0 ? -26 : S.gk.targetZone===2 ? 26 : 0);
+      var fy = scrY(GOAL_H/2);
+      ctx.save();
+      ctx.globalAlpha = fa;
+      ctx.shadowColor = '#fff7b0'; ctx.shadowBlur = 14;
+      ctx.strokeStyle = '#fff7b0'; ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      for(var si=0; si<4; si++){
+        var ang = si*(Math.PI/2) + Math.PI/4;
+        ctx.moveTo(fx, fy);
+        ctx.lineTo(fx+Math.cos(ang)*9, fy+Math.sin(ang)*9);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   function drawDefenders(){
@@ -988,12 +1081,14 @@
       if(sy < -40 || sy > CH+40) continue;
       ctx.save();
       ctx.globalAlpha = d.activated ? 1 : 0.72;
+      var bossGlow = d.boss ? (0.5+0.5*Math.sin(X.time*6)) : 0;
+      if(d.boss){ ctx.shadowColor = '#ff2a3a'; ctx.shadowBlur = 14+bossGlow*10; }
       var grad = ctx.createRadialGradient(d.x-5, sy-6, 3, d.x, sy, d.r);
-      grad.addColorStop(0, lightC);
-      grad.addColorStop(1, darkC);
+      grad.addColorStop(0, d.boss ? '#ff8a6b' : lightC);
+      grad.addColorStop(1, d.boss ? '#7a1010' : darkC);
       ctx.beginPath(); ctx.arc(d.x, sy, d.r, 0, Math.PI*2);
       ctx.fillStyle = grad; ctx.fill();
-      ctx.lineWidth = 2; ctx.strokeStyle = strokeC; ctx.stroke();
+      ctx.lineWidth = d.boss ? 3 : 2; ctx.strokeStyle = d.boss ? '#3a0505' : strokeC; ctx.stroke();
       ctx.beginPath(); ctx.ellipse(d.x-5, sy-6, 4, 2.4, Math.PI/4, 0, Math.PI*2);
       ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fill();
       if(d.dir){
@@ -1004,6 +1099,11 @@
         ctx.fillStyle = '#ffba08'; ctx.fill();
       }
       ctx.restore();
+      if(d.boss){
+        ctx.fillStyle = '#fff'; ctx.font = '900 11px Arial Black'; ctx.textAlign = 'center';
+        ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 3;
+        ctx.strokeText('BOSS', d.x, sy - d.r - 6); ctx.fillText('BOSS', d.x, sy - d.r - 6);
+      }
     }
   }
 
@@ -1178,6 +1278,14 @@
     ctx.fillStyle = gloss;
     ctx.fillRect(bx-r, by-r, r*2, r*2);
     ctx.restore();
+    // NOUVEAU : liseree doree pour les skins debloques par l'usage
+    if(skin.gold){
+      ctx.save();
+      ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 10;
+      ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(bx, by, r+1.5, 0, Math.PI*2); ctx.stroke();
+      ctx.restore();
+    }
   }
 
   function drawFloatingTexts(){
@@ -1219,6 +1327,7 @@
     drawFieldDetail();
     drawMud();
     drawBonuses();
+    drawCoins();
     drawPenaltyBox();
     drawGoal();
     drawObstacles();
@@ -1251,7 +1360,10 @@
     if(!document.getElementById('gameover-overlay').classList.contains('hidden')){ document.getElementById('btn-retry').click(); return true; }
     return false;
   }
-  canvas.addEventListener('pointerdown', function(){ if(S.screen==='dying') spaceContinue(); });
+  canvas.addEventListener('pointerdown', function(){
+    if(S.slowmo>0){ S.slowmo=0; return; }
+    if(S.screen==='dying') spaceContinue();
+  });
 
   function startDeath(over){
     S.screen = 'dying';
@@ -1259,39 +1371,38 @@
     X.shake = 14; X.redFlash = 1;
     spawnParticles(S.player.x, S.player.y, '#ffffff', 18);
     spawnParticles(S.player.x, S.player.y, '#e6394a', 22);
-    playTone(220, audioCtx ? audioCtx.currentTime : 0, 0.25, 'sawtooth', 0.15);
-    playTone(140, audioCtx ? audioCtx.currentTime+0.18 : 0, 0.35, 'sawtooth', 0.15);
+    ensureAudio();
+    if(audioCtx){
+      playTone(220, audioCtx.currentTime, 0.25, 'sawtooth', 0.15);
+      playTone(140, audioCtx.currentTime+0.18, 0.35, 'sawtooth', 0.15);
+    }
     vibrate([0,80,60,160]);
   }
 
   function drawDeath(){
     var d = X.death; if(!d) return;
     var y = scrY(d.y), t = d.t;
-    // onde de choc
     for(var i=0;i<3;i++){
       var rt = t - i*0.12; if(rt<0 || rt>0.7) continue;
       ctx.strokeStyle = 'rgba(230,57,74,'+(1-rt/0.7)+')'; ctx.lineWidth = 5*(1-rt/0.7)+1;
       ctx.beginPath(); ctx.arc(d.x, y, 10 + rt*180, 0, Math.PI*2); ctx.stroke();
     }
-    // ballon qui s'écrase
     if(t < 0.5){
       var k = 1 - t/0.5;
       ctx.save(); ctx.translate(d.x, y); ctx.scale(1 + (1-k)*0.6, k); ctx.globalAlpha = k;
       ctx.fillStyle = '#fff'; ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(0, 0, BALL_R, 0, Math.PI*2); ctx.fill(); ctx.stroke(); ctx.restore();
     }
-    // voile sombre
     ctx.fillStyle = 'rgba(15,5,8,'+Math.min(0.55, t*1.2)+')'; ctx.fillRect(0,0,CW,CH);
-    // coeur qui se brise
     var cy = CH*0.4, pop = t < 0.35 ? easeOut(t/0.35) : 1;
     var split = Math.max(0, t-0.35)*40;
     ctx.save(); ctx.translate(CW/2, cy); ctx.scale(pop*2.4, pop*2.4);
     ctx.font = '900 40px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillStyle = '#e6394a'; ctx.strokeStyle='#1a1a1a'; ctx.lineWidth = 3;
     ctx.save(); ctx.beginPath(); ctx.rect(-40,-40,40,80); ctx.clip(); ctx.translate(-Math.min(split,8), Math.min(split,8)*0.3); ctx.rotate(-Math.min(split,8)*0.02);
-    ctx.strokeText('♥',0,0); ctx.fillText('♥',0,0); ctx.restore();
+    ctx.strokeText('\u2665',0,0); ctx.fillText('\u2665',0,0); ctx.restore();
     ctx.save(); ctx.beginPath(); ctx.rect(0,-40,40,80); ctx.clip(); ctx.translate(Math.min(split,8), Math.min(split,8)*0.3); ctx.rotate(Math.min(split,8)*0.02);
-    ctx.strokeText('♥',0,0); ctx.fillText('♥',0,0); ctx.restore();
+    ctx.strokeText('\u2665',0,0); ctx.fillText('\u2665',0,0); ctx.restore();
     ctx.restore();
     ctx.textBaseline='alphabetic'; ctx.textAlign='center';
     if(t > 0.35){
@@ -1303,24 +1414,28 @@
     if(t > 0.6){
       var a = 0.55 + 0.45*Math.sin(t*6);
       ctx.fillStyle = 'rgba(255,214,10,'+a+')'; ctx.font = '900 18px Arial Black';
-      ctx.fillText(isTouchLayout() ? 'TOUCHE L\'ÉCRAN POUR REPARTIR' : 'ESPACE POUR REPARTIR', CW/2, cy + 170);
+      ctx.fillText(isTouchLayout() ? 'TOUCHE L\u2019\u00c9CRAN POUR REPARTIR' : 'ESPACE POUR REPARTIR', CW/2, cy + 170);
     }
   }
 
-  // ================= EXTRAS : ligne rouge, boue, bonus, tacles, ambiance =================
+  // ================= EXTRAS : ligne rouge, boue, bonus, pieces, vent, tacles =================
   var CHASER_LEVEL = 3, TACKLE_LEVEL = 6, MUD_LEVEL = 4, BONUS_LEVEL = 2, SHOT_TIME = 3.5;
-  var X = { chaser:null, mud:[], bonuses:[], trail:[], clods:[], rain:[], confetti:[],
+  var X = { chaser:null, mud:[], bonuses:[], coins:[], trail:[], clods:[], rain:[], confetti:[],
             shake:0, flash:0, banner:null, sprint:0, shield:false, slow:0, shotTimer:SHOT_TIME,
-            lastDir:null, time:0 };
+            lastDir:null, time:0, windActive:false, windDir:1 };
 
   function rnd(a,b){ return a + Math.random()*(b-a); }
   function ambianceFor(l){ return ['day','sunset','night','rain'][(l-1)%4]; }
 
   function extraReset(){
     var lvl = S.level;
-    X.chaser = lvl >= CHASER_LEVEL ? { y: START_Y + 260, speed: 22 + lvl*2.6 } : null;
-    X.mud = []; X.bonuses = []; X.trail = []; X.clods = []; X.confetti = [];
+    var isBoss = (lvl % 10 === 0);
+    var baseChaserSpeed = 22 + lvl*2.6;
+    X.chaser = lvl >= CHASER_LEVEL ? { y: START_Y + 260, speed: isBoss ? baseChaserSpeed*2.2 : baseChaserSpeed } : null;
+    X.mud = []; X.bonuses = []; X.coins = []; X.trail = []; X.clods = []; X.confetti = [];
     X.sprint = 0; X.shield = false; X.slow = 0; X.shotTimer = SHOT_TIME; X.shake = 0;
+    X.windActive = ambianceFor(lvl) === 'rain';
+    X.windDir = Math.random() < 0.5 ? -1 : 1;
     var span = START_Y - SHOOT_Y - 80;
     if(lvl >= MUD_LEVEL){
       var nm = Math.min(1 + Math.floor((lvl-MUD_LEVEL)/3), 5);
@@ -1329,21 +1444,40 @@
                      rx: rnd(38,60), ry: rnd(22,34), seed: Math.random()*10 });
       }
     }
-    if(lvl >= BONUS_LEVEL){
+    // NOUVEAU : bonus rendus rares (avant : garantis a chaque tentative, jusqu'a 4)
+    if(lvl >= BONUS_LEVEL && Math.random() < 0.28){
       var types = ['sprint','shield'];
       if(X.chaser) types.push('slow');
-      var nb = Math.min(1 + Math.floor(lvl/5), 4);
+      var nb = Math.random() < 0.15 ? 2 : 1;
       for(var j=0;j<nb;j++){
         X.bonuses.push({ type: types[Math.floor(Math.random()*types.length)],
           x: rnd(FIELD_MARGIN+30, CW-FIELD_MARGIN-30), y: SHOOT_Y+40 + Math.random()*span, t: Math.random()*6 });
       }
     }
+    spawnCoins(lvl, span);
     X.rain = [];
-    if(ambianceFor(lvl)==='rain'){ for(var k=0;k<90;k++){ X.rain.push({x:Math.random()*CW, y:Math.random()*CH, v:rnd(500,800)}); } }
-    if(lvl === CHASER_LEVEL) showBanner('LA LIGNE ROUGE ARRIVE !', '#e6394a');
+    if(X.windActive){ for(var k=0;k<90;k++){ X.rain.push({x:Math.random()*CW, y:Math.random()*CH, v:rnd(500,800)}); } }
+    if(isBoss){ showBanner('NIVEAU BOSS !', '#e6394a'); }
+    else if(lvl === CHASER_LEVEL) showBanner('LA LIGNE ROUGE ARRIVE !', '#e6394a');
     else if(lvl === MUD_LEVEL) showBanner('ATTENTION : BOUE !', '#8a5a2b');
     else if(lvl === TACKLE_LEVEL) showBanner('LES D\u00c9FENSEURS TACLENT !', '#ff9500');
     else if(lvl === BONUS_LEVEL) showBanner('BONUS SUR LE TERRAIN !', '#2ec4b6');
+  }
+
+  // NOUVEAU : pieces a ramasser sur le terrain, certaines proches de la ligne rouge (risque/recompense)
+  function spawnCoins(lvl, span){
+    var safeCount = Math.min(2 + Math.floor(lvl/4), 5);
+    for(var i=0;i<safeCount;i++){
+      X.coins.push({ x: rnd(FIELD_MARGIN+40, CW-FIELD_MARGIN-40), y: SHOOT_Y+80 + Math.random()*span*0.7,
+        value: 8, risky:false, t: Math.random()*6 });
+    }
+    if(X.chaser){
+      var riskyCount = Math.min(1 + Math.floor(lvl/6), 3);
+      for(var j=0;j<riskyCount;j++){
+        X.coins.push({ x: rnd(FIELD_MARGIN+40, CW-FIELD_MARGIN-40), y: START_Y - rnd(20,130),
+          value: 20, risky:true, t: Math.random()*6 });
+      }
+    }
   }
 
   function showBanner(txt, col){ X.banner = { txt: txt, col: col, t: 0 }; }
@@ -1358,6 +1492,11 @@
     if(X.sprint>0) m *= 1.5;
     if(inMud(S.player.x, S.player.y)) m *= 0.55;
     return m;
+  }
+  // NOUVEAU : vent lateral pendant les niveaux de pluie
+  function windForce(){
+    if(!X.windActive) return 0;
+    return X.windDir * (35 + 15*Math.sin(X.time*0.7));
   }
   function useShield(){
     if(!X.shield) return false;
@@ -1392,7 +1531,6 @@
   }
 
   function extraUpdate(dt){
-    // traînée & mottes
     X.trail.push({x:S.player.x, y:S.player.y});
     if(X.trail.length > 10) X.trail.shift();
     var n = X.trail.length;
@@ -1406,7 +1544,6 @@
       }
       if(Math.hypot(a.x-b.x,a.y-b.y) > 3) X.lastDir = dir;
     }
-    // bonus
     if(X.sprint>0) X.sprint -= dt;
     if(X.slow>0) X.slow -= dt;
     for(var i=X.bonuses.length-1;i>=0;i--){
@@ -1422,7 +1559,18 @@
         playCoinSound(2);
       }
     }
-    // ligne rouge
+    // NOUVEAU : ramassage des pieces sur le terrain
+    for(var p=X.coins.length-1;p>=0;p--){
+      var co = X.coins[p]; co.t += dt;
+      if(Math.hypot(co.x-S.player.x, co.y-S.player.y) < S.player.r + 12){
+        X.coins.splice(p,1);
+        S.coins += co.value;
+        persist();
+        spawnFloatingText(co.x, co.y-16, '+'+co.value, co.risky ? '#ffd700' : '#ffffff', co.risky?18:14, co.risky);
+        spawnParticles(co.x, co.y, '#ffd700', co.risky?12:6);
+        playCoinSound(co.risky?2:1);
+      }
+    }
     if(X.chaser){
       var sp = X.chaser.speed * (X.slow>0 ? 0.35 : 1);
       X.chaser.y -= sp*dt;
@@ -1438,7 +1586,6 @@
         return;
       }
     }
-    // chrono de tir
     if(S.shootReady){
       X.shotTimer -= dt;
       if(X.shotTimer <= 0){
@@ -1459,10 +1606,10 @@
     }
   }
 
-  // tick global (même hors jeu) pour effets visuels
   var lastFx = 0;
   function fxTick(){
-    var now = performance.now(); var dt = lastFx ? Math.min((now-lastFx)/1000, 0.05) : 0; lastFx = now;
+    var now = performance.now(); var real = lastFx ? Math.min((now-lastFx)/1000, 0.05) : 0; lastFx = now;
+    var dt = S.slowmo>0 ? real*0.25 : real;
     X.time += dt;
     if(X.death) X.death.t += dt;
     X.shake = Math.max(0, X.shake - dt*25);
@@ -1475,7 +1622,6 @@
 
   // ---- dessin ----
   function drawFieldDetail(){
-    // texture d'herbe déterministe
     ctx.fillStyle = 'rgba(0,0,0,.06)';
     var y0 = Math.floor(S.camera.y/24)*24;
     for(var wy=y0; wy<S.camera.y+CH+24; wy+=24){
@@ -1485,7 +1631,6 @@
         ctx.fillRect(gx, wy - S.camera.y + (i%3)*7, 2, 5);
       }
     }
-    // ligne médiane
     var midY = scrY((START_Y + SHOOT_Y)/2);
     if(midY > -80 && midY < CH+80){
       ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 3;
@@ -1524,6 +1669,21 @@
     }
   }
 
+  // NOUVEAU : pieces posees sur le terrain (dorees, celles a risque ont une lueur rouge)
+  function drawCoins(){
+    for(var i=0;i<X.coins.length;i++){
+      var co = X.coins[i], y = scrY(co.y) + Math.sin(co.t*3)*2;
+      if(y < -30 || y > CH+30) continue;
+      ctx.save();
+      if(co.risky){ ctx.shadowColor = '#e6394a'; ctx.shadowBlur = 10; }
+      ctx.fillStyle = '#ffd700'; ctx.strokeStyle = '#8a6d00'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(co.x, y, 9, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = '#8a6d00'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('$', co.x, y+1); ctx.textBaseline = 'alphabetic';
+    }
+  }
+
   function drawTackleWarn(){
     for(var i=0;i<S.defenders.length;i++){
       var d = S.defenders[i];
@@ -1546,7 +1706,6 @@
     if(!X.chaser) return;
     var y = scrY(X.chaser.y);
     if(y > CH + 40) {
-      // indicateur en bas de l'écran
       var gap = X.chaser.y - S.player.y;
       ctx.fillStyle = 'rgba(230,57,74,'+(0.25+0.15*Math.sin(X.time*6))+')';
       ctx.fillRect(FIELD_MARGIN, CH-6, CW-2*FIELD_MARGIN, 6);
@@ -1555,11 +1714,9 @@
       return;
     }
     var pulse = 0.5 + 0.5*Math.sin(X.time*8);
-    // zone brûlée
     var g = ctx.createLinearGradient(0, y, 0, y+160);
     g.addColorStop(0, 'rgba(230,40,50,.55)'); g.addColorStop(1, 'rgba(120,0,10,0)');
     ctx.fillStyle = g; ctx.fillRect(FIELD_MARGIN, y, CW-2*FIELD_MARGIN, 160);
-    // halo de chaleur ondulant
     ctx.save();
     ctx.shadowColor = '#ff2a3a'; ctx.shadowBlur = 18 + pulse*14;
     ctx.strokeStyle = X.slow>0 ? '#ff9aa5' : '#ff2a3a'; ctx.lineWidth = 5 + pulse*2;
@@ -1572,7 +1729,6 @@
     ctx.restore();
     ctx.strokeStyle = 'rgba(255,230,200,.9)'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(FIELD_MARGIN, y); ctx.lineTo(CW-FIELD_MARGIN, y); ctx.stroke();
-    // étincelles
     for(var s=0;s<6;s++){
       var sx = FIELD_MARGIN + ((X.time*90 + s*73) % (CW-2*FIELD_MARGIN));
       ctx.fillStyle = 'rgba(255,200,120,'+(0.4+0.6*Math.random())+')';
@@ -1605,7 +1761,6 @@
       var r = ctx.createRadialGradient(bx, by, 40, bx, by, 360);
       r.addColorStop(0,'rgba(5,10,30,0)'); r.addColorStop(1,'rgba(5,10,30,.55)');
       ctx.fillStyle = r; ctx.fillRect(0,0,CW,CH);
-      // projecteurs
       var ly = scrY(-14);
       [FIELD_MARGIN-13, CW-FIELD_MARGIN+13].forEach(function(lx){
         var cg = ctx.createRadialGradient(lx, ly, 0, lx, ly, 260);
@@ -1630,7 +1785,6 @@
       ctx.save(); ctx.translate(f.x, scrY(f.y)); ctx.rotate(f.rot);
       ctx.fillStyle = f.col; ctx.fillRect(-4,-2,8,4); ctx.restore(); }
     if(X.flash>0){ ctx.fillStyle = 'rgba(255,255,255,'+(X.flash*0.5)+')'; ctx.fillRect(0,0,CW,CH); }
-    // vignette rouge si ligne proche
     if(X.chaser && S.screen==='playing'){
       var gap = X.chaser.y - S.player.y;
       if(gap < 220){
@@ -1640,7 +1794,6 @@
         ctx.fillStyle = v; ctx.fillRect(0,0,CW,CH);
       }
     }
-    // chrono de tir
     if(S.screen==='playing' && S.shootReady){
       var frac = Math.max(0, X.shotTimer/SHOT_TIME);
       var px = S.player.x, py = scrY(S.player.y);
@@ -1649,7 +1802,6 @@
       ctx.strokeStyle = frac < 0.35 ? '#e6394a' : '#ffd60a';
       ctx.beginPath(); ctx.arc(px, py, S.player.r+12, -Math.PI/2, -Math.PI/2 + Math.PI*2*frac); ctx.stroke();
     }
-    // HUD bonus actifs
     var tags = [];
     if(X.sprint>0) tags.push('\u26a1 ' + X.sprint.toFixed(1));
     if(X.slow>0) tags.push('\u23f3 ' + X.slow.toFixed(1));
@@ -1661,7 +1813,6 @@
         ctx.fillStyle = 'rgba(26,26,26,.75)'; ctx.fillRect(tx, 12, w, 22);
         ctx.fillStyle = '#fff'; ctx.fillText(t, tx+7, 28); tx += w + 6; });
     }
-    // bannière
     if(X.banner){
       var t = X.banner.t, k = t < 0.3 ? t/0.3 : t > 2 ? Math.max(0,(2.4-t)/0.4) : 1;
       var bw = CW*0.86*k, bh = 54;
@@ -1673,7 +1824,6 @@
       ctx.restore();
     }
   }
-
 
   function updateHUD(){
     document.getElementById('hud-level').textContent = S.level;
@@ -1851,7 +2001,7 @@
     if(!owned){
       var lock = document.createElement('span');
       lock.className = 'lock-badge';
-      lock.textContent = '\uD83D\uDD12';
+      lock.textContent = item.gold ? '\u2b50' : '\uD83D\uDD12';
       swatch.appendChild(lock);
     }
     var label = document.createElement('div'); label.textContent = item.name;
@@ -1860,6 +2010,11 @@
       btn.textContent = (equippedId===item.id) ? 'Equip\u00e9' : 'Equiper';
       btn.disabled = (equippedId===item.id);
       btn.onclick = function(){ equipFn(item.id); persist(); renderShop(); };
+    } else if(item.gold){
+      // NOUVEAU : variante doree, pas d'achat possible, se debloque en marquant des buts
+      var progress = S.goalsPerSkin[item.baseId] || 0;
+      btn.textContent = Math.min(progress, item.goalsNeeded) + '/' + item.goalsNeeded + ' buts';
+      btn.disabled = true;
     } else {
       btn.textContent = 'Acheter (' + item.price + ')';
       btn.disabled = S.coins < item.price;
